@@ -42,28 +42,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: "Jonli Kuzatuv",
       icon: Activity,
       badge: liveCount > 0 ? `${liveCount} faol` : null,
-      badgeColor: "bg-emerald-500 text-white font-bold animate-pulse shadow-sm shadow-emerald-500/30",
+      badgeColor: "bg-emerald-600 text-white font-bold",
     },
     {
       id: "groups" as TabType,
       label: "Guruhlar",
       icon: FolderKanban,
       badge: groupCount > 0 ? String(groupCount) : null,
-      badgeColor: "bg-purple-100 text-purple-800 border border-purple-200",
+      badgeColor: "bg-emerald-50 text-emerald-800 border border-emerald-200",
     },
     {
       id: "results" as TabType,
       label: "Natijalar",
       icon: Users,
       badge: resultCount > 0 ? String(resultCount) : null,
-      badgeColor: "bg-emerald-100 text-emerald-800 border border-emerald-200",
+      badgeColor: "bg-green-50 text-green-800 border border-green-200",
     },
     {
       id: "questions" as TabType,
       label: "Savollar Bazasi",
       icon: BookOpenCheck,
       badge: questionCount > 0 ? String(questionCount) : null,
-      badgeColor: "bg-blue-100 text-blue-800 border border-blue-200",
+      badgeColor: "bg-emerald-100/70 text-emerald-900 border border-emerald-300/80",
     },
     {
       id: "settings" as TabType,
@@ -133,14 +133,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-4 m-4 rounded-2xl bg-slate-50 border border-slate-200">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <span className="relative flex h-2.5 w-2.5">
-              {isRealtimeConnected && (
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              )}
-              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+            <span
+              className={`w-2.5 h-2.5 rounded-full shrink-0 ${
                 isRealtimeConnected ? "bg-emerald-500" : "bg-amber-500"
-              }`} />
-            </span>
+              }`}
+            />
             <div className="text-xs">
               <p className="font-bold text-slate-800">Supabase Realtime</p>
               <p className="text-[11px] text-slate-500">

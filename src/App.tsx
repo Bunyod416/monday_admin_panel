@@ -10,11 +10,15 @@ import { StudentDetailModal } from "./components/StudentDetailModal";
 import { QuestionsView } from "./components/QuestionsView";
 import { QuestionModal } from "./components/QuestionModal";
 import { ExamConfigView } from "./components/ExamConfigView";
+import { AdminLogin } from "./components/AdminLogin";
 import { supabase } from "./lib/supabase";
 import type { ExamResult, Question, TabType, ExamSettings, ExamGroup, LiveStudentTelemetry } from "./types";
 import { Bell } from "lucide-react";
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem("monday_admin_auth") === "true";
+  });
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
   const [results, setResults] = useState<ExamResult[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -72,10 +76,23 @@ export default function App() {
         .order("id", { ascending: false });
 
       if (!resultsError && resultsData) {
-        const parsedResults = resultsData.map((r: any): ExamResult => ({
-          ...r,
-          group_code: r.group_code || (r.answers as any)?._meta?.group_code || undefined,
-        }));
+        const parsedResults = resultsData.map((r: any): ExamResult => {
+          const answers = typeof r.answers === "string" ? (() => { try { return JSON.parse(r.answers); } catch { return {}; } })() : (r.answers || {});
+          const categoryOrder = typeof r.category_order === "string" ? (() => { try { return JSON.parse(r.category_order); } catch { return undefined; } })() : r.category_order;
+          const optionOrders = typeof r.option_orders === "string" ? (() => { try { return JSON.parse(r.option_orders); } catch { return undefined; } })() : r.option_orders;
+          const dragOrders = typeof r.drag_orders === "string" ? (() => { try { return JSON.parse(r.drag_orders); } catch { return undefined; } })() : r.drag_orders;
+          const rawGroup = r.group_code || (answers as any)?._meta?.group_code;
+          const cleanGroup = rawGroup ? String(rawGroup).trim().toUpperCase() : undefined;
+
+          return {
+            ...r,
+            answers,
+            category_order: categoryOrder,
+            option_orders: optionOrders,
+            drag_orders: dragOrders,
+            group_code: cleanGroup,
+          };
+        });
         setResults(parsedResults);
       }
 
@@ -122,7 +139,7 @@ export default function App() {
         const parsed = groupsData.map((g: any) => ({
           id: g.id,
           group_name: g.group_name,
-          group_code: g.group_code,
+          group_code: g.group_code ? g.group_code.trim().toUpperCase() : "",
           counts: typeof g.counts === "string" ? JSON.parse(g.counts) : g.counts,
           duration_minutes: Number(g.duration_minutes) || 60,
           max_students: Number(g.max_students) || 30,
@@ -175,22 +192,38 @@ export default function App() {
         { event: "INSERT", schema: "public", table: "results" },
         (payload) => {
           const raw = payload.new as any;
+          const answers = typeof raw.answers === "string" ? (() => { try { return JSON.parse(raw.answers); } catch { return {}; } })() : (raw.answers || {});
+          const categoryOrder = typeof raw.category_order === "string" ? (() => { try { return JSON.parse(raw.category_order); } catch { return undefined; } })() : raw.category_order;
+          const optionOrders = typeof raw.option_orders === "string" ? (() => { try { return JSON.parse(raw.option_orders); } catch { return undefined; } })() : raw.option_orders;
+          const dragOrders = typeof raw.drag_orders === "string" ? (() => { try { return JSON.parse(raw.drag_orders); } catch { return undefined; } })() : raw.drag_orders;
+          const rawGroup = raw.group_code || (answers as any)?._meta?.group_code;
+          const cleanGroup = rawGroup ? String(rawGroup).trim().toUpperCase() : undefined;
+
           const newResult: ExamResult = {
             ...raw,
-            group_code: raw.group_code || (raw.answers as any)?._meta?.group_code || undefined,
+            answers,
+            category_order: categoryOrder,
+            option_orders: optionOrders,
+            drag_orders: dragOrders,
+            group_code: cleanGroup,
           };
+
           setResults((prev) => {
             if (prev.some((r) => r.id === newResult.id)) return prev;
             return [newResult, ...prev];
           });
-          // Remove from live active list if present
+
+          // Remove from live active list if present (using composite key or name match)
           setLiveStudents((prev) => {
-            if (!prev[newResult.student_name]) return prev;
             const updated = { ...prev };
+            const cleanCode = (newResult.group_code || "GENERAL").toUpperCase();
+            const compositeKey = `${cleanCode}::${newResult.student_name.trim()}`;
+            delete updated[compositeKey];
             delete updated[newResult.student_name];
             return updated;
           });
-          showNotification(`🎉 Yangi natija: ${newResult.student_name} (${newResult.score} ball)`);
+
+          showNotification(`Yangi natija: ${newResult.student_name} (${newResult.score} ball)`);
         }
       )
       .on(
@@ -218,16 +251,21 @@ export default function App() {
         const telemetry = payload as LiveStudentTelemetry;
         if (!telemetry || !telemetry.studentName) return;
 
+        const cleanGroup = (telemetry.groupCode || "GENERAL").trim().toUpperCase();
+        const studentKey = `${cleanGroup}::${telemetry.studentName.trim()}`;
+
         setLiveStudents((prev) => {
           if (telemetry.status === "submitted") {
             const next = { ...prev };
+            delete next[studentKey];
             delete next[telemetry.studentName];
             return next;
           }
           return {
             ...prev,
-            [telemetry.studentName]: {
+            [studentKey]: {
               ...telemetry,
+              groupCode: cleanGroup === "GENERAL" ? "" : cleanGroup,
               lastActiveAt: Date.now(),
             },
           };
@@ -241,9 +279,9 @@ export default function App() {
       setLiveStudents((prev) => {
         let changed = false;
         const updated = { ...prev };
-        for (const [name, data] of Object.entries(prev)) {
+        for (const [key, data] of Object.entries(prev)) {
           if (now - (data.lastActiveAt || 0) > 45000) {
-            delete updated[name];
+            delete updated[key];
             changed = true;
           }
         }
@@ -260,17 +298,15 @@ export default function App() {
         async () => {
           const { data } = await supabase.from("exam_groups").select("*").order("created_at", { ascending: false });
           if (data) {
-            const parsed = data.map((g: any) => ({
-              id: g.id,
-              group_name: g.group_name,
-              group_code: g.group_code,
+            const parsed = data.map((g: any): ExamGroup => ({
+              ...g,
               counts: typeof g.counts === "string" ? JSON.parse(g.counts) : g.counts,
               duration_minutes: Number(g.duration_minutes) || 60,
               max_students: Number(g.max_students) || 30,
               is_active: g.is_active !== false,
-              created_at: g.created_at,
             }));
             setGroups(parsed);
+            localStorage.setItem("monday_exam_groups_cache", JSON.stringify(parsed));
           }
         }
       )
@@ -299,30 +335,27 @@ export default function App() {
   }, []);
 
 
-  async function handleCreateGroup(group: ExamGroup) {
-    const cleanCode = group.group_code.trim().toUpperCase();
-    const groupId = group.id ? String(group.id) : `grp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-
-    const payload = {
-      id: groupId,
-      group_name: group.group_name.trim(),
-      group_code: cleanCode,
-      counts: group.counts,
-      duration_minutes: Number(group.duration_minutes) || 60,
-      max_students: Number(group.max_students) || 30,
-      is_active: group.is_active !== false,
-    };
-
+  async function handleCreateGroup(newGroup: Omit<ExamGroup, "id">) {
+    const generatedId = `grp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const { data, error } = await supabase
       .from("exam_groups")
-      .upsert(payload, { onConflict: "group_code" })
+      .insert({
+        id: generatedId,
+        group_name: newGroup.group_name,
+        group_code: newGroup.group_code,
+        counts: newGroup.counts,
+        duration_minutes: newGroup.duration_minutes,
+        max_students: newGroup.max_students,
+        is_active: newGroup.is_active,
+        created_at: new Date().toISOString(),
+      })
       .select()
       .single();
 
     if (error) {
-      console.error("Failed to save group to Supabase:", error);
-      alert(`Guruhni saqlashda xatolik: ${error.message}`);
-      throw error;
+      console.error("Error creating group:", error);
+      alert("Guruh yaratishda xatolik: " + error.message);
+      return;
     }
 
     const createdGroup: ExamGroup = {
@@ -342,7 +375,7 @@ export default function App() {
       return updated;
     });
 
-    showNotification(`✅ Guruh yaratildi: ${createdGroup.group_name} (${createdGroup.group_code})`);
+    showNotification(`Guruh yaratildi: ${createdGroup.group_name} (${createdGroup.group_code})`);
   }
 
   async function handleToggleGroupStatus(groupCode: string, currentStatus: boolean) {
@@ -364,24 +397,46 @@ export default function App() {
     });
   }
 
-  async function handleDeleteGroup(groupCode: string) {
+  async function handleDeleteGroup(groupCode: string, deleteResults: boolean = true) {
     const cleanCode = groupCode.trim().toUpperCase();
-    const { error } = await supabase
-      .from("exam_groups")
-      .delete()
-      .ilike("group_code", cleanCode);
 
-    if (error) {
-      console.error("Error deleting group:", error);
-      alert("Guruhni o'chirishda xatolik yuz berdi");
-    } else {
-      setGroups((prev) => {
-        const updated = prev.filter((g) => g.group_code.toUpperCase() !== cleanCode);
-        localStorage.setItem("monday_exam_groups_cache", JSON.stringify(updated));
-        return updated;
-      });
-      showNotification(`🗑 Guruh o'chirildi: ${cleanCode}`);
+    // 1. Delete from exam_groups table
+    try {
+      await supabase
+        .from("exam_groups")
+        .delete()
+        .ilike("group_code", cleanCode);
+    } catch (err) {
+      console.warn("Error deleting from exam_groups:", err);
     }
+
+    // 2. If deleteResults is true, delete from results table
+    if (deleteResults) {
+      try {
+        await supabase
+          .from("results")
+          .delete()
+          .ilike("group_code", cleanCode);
+      } catch (err) {
+        console.warn("Error deleting from results:", err);
+      }
+
+      setResults((prev) =>
+        prev.filter((r) => {
+          const rCode = (r.group_code || r.answers?._meta?.group_code || "").toString().trim().toUpperCase();
+          return rCode !== cleanCode;
+        })
+      );
+    }
+
+    // 3. Update groups state and cache
+    setGroups((prev) => {
+      const updated = prev.filter((g) => g.group_code.toUpperCase() !== cleanCode);
+      localStorage.setItem("monday_exam_groups_cache", JSON.stringify(updated));
+      return updated;
+    });
+
+    showNotification(`Guruh o'chirildi: ${cleanCode}`);
   }
 
   function handleViewResultsForGroup(groupCode: string) {
@@ -452,6 +507,10 @@ export default function App() {
     }
   }
 
+  if (!isAuthenticated) {
+    return <AdminLogin onSuccess={() => setIsAuthenticated(true)} />;
+  }
+
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900 font-sans antialiased relative">
       {/* Realtime Toast Notification */}
@@ -482,6 +541,10 @@ export default function App() {
           onRefresh={loadData}
           isRefreshing={isRefreshing}
           isRealtimeConnected={isRealtimeConnected}
+          onLogout={() => {
+            localStorage.removeItem("monday_admin_auth");
+            setIsAuthenticated(false);
+          }}
         />
 
         <main className="p-8 max-w-7xl w-full mx-auto flex-1">

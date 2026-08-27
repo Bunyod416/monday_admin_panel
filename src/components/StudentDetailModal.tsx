@@ -5,6 +5,8 @@ import {
   XCircle,
   Clock,
   HelpCircle,
+  Copy,
+  Check,
 } from "lucide-react";
 import type { ExamResult, Question, Category } from "../types";
 import { matchWithNearMiss, langForCategory } from "../utils/answerMatch";
@@ -21,14 +23,32 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   onClose,
 }) => {
   const [selectedCat, setSelectedCat] = useState<Category | "ALL">("ALL");
+  const [copiedGroup, setCopiedGroup] = useState<string | null>(null);
+
+  function copyGroupCode(code: string) {
+    navigator.clipboard.writeText(code);
+    setCopiedGroup(code);
+    setTimeout(() => {
+      setCopiedGroup((current) => (current === code ? null : current));
+    }, 2000);
+  }
 
   const categories: Category[] = ["HTML", "CSS", "JavaScript", "Python"];
   const score = Number(result?.score) || 0;
 
+  // Safe parsing of JSON fields if stringified
+  const categoryOrder = typeof result?.category_order === "string"
+    ? (() => { try { return JSON.parse(result.category_order); } catch { return undefined; } })()
+    : result?.category_order;
+
+  const answers = typeof result?.answers === "string"
+    ? (() => { try { return JSON.parse(result.answers); } catch { return {}; } })()
+    : (result?.answers || {});
+
   // Extract only the question IDs assigned to this student in their exam
-  const studentAssignedIds: number[] = result?.category_order
-    ? categories.flatMap((c) => result.category_order?.[c] || [])
-    : Object.keys(result?.answers || {})
+  const studentAssignedIds: number[] = categoryOrder
+    ? categories.flatMap((c) => categoryOrder?.[c] || [])
+    : Object.keys(answers || {})
         .filter((k) => k !== "_meta" && !isNaN(Number(k)))
         .map(Number);
 
@@ -38,15 +58,15 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   // Filter display questions based on assigned IDs and selected category
   const filteredQuestions: Question[] = (() => {
     if (studentAssignedIds.length > 0) {
-      const targetIds = selectedCat === "ALL"
+      const targetIds: number[] = selectedCat === "ALL"
         ? studentAssignedIds
-        : (result?.category_order?.[selectedCat] || studentAssignedIds.filter((id) => {
+        : (categoryOrder?.[selectedCat] || studentAssignedIds.filter((id: number) => {
             const q = questions.find((item) => item.id === id);
             return q?.category === selectedCat;
           }));
 
       return targetIds
-        .map((id) => questions.find((q) => q.id === id))
+        .map((id: number) => questions.find((q) => q.id === id))
         .filter((q): q is Question => Boolean(q));
     }
 
@@ -67,22 +87,57 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
             <div>
               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                 {result.student_name}
-                <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
-                  pct >= 86
-                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                    : pct >= 71
-                    ? "bg-blue-50 text-blue-800 border-blue-200"
-                    : pct >= 56
-                    ? "bg-amber-50 text-amber-800 border-amber-200"
-                    : "bg-rose-50 text-rose-800 border-rose-200"
-                }`}>
+                <span
+                  className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
+                    pct >= 86
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                      : pct >= 71
+                      ? "bg-green-50 text-green-800 border-green-200"
+                      : pct >= 56
+                      ? "bg-teal-50 text-teal-800 border-teal-200"
+                      : "bg-slate-100 text-slate-700 border-slate-200"
+                  }`}
+                >
                   {pct}% natija
                 </span>
               </h2>
               <p className="text-xs text-slate-500 flex items-center gap-3 mt-1">
-                <span className="flex items-center gap-1"><Clock size={12} /> {new Date(result.submitted_at || result.created_at).toLocaleString("uz-UZ")}</span>
+                <span className="flex items-center gap-1">
+                  <Clock size={12} /> {new Date(result.submitted_at || result.created_at).toLocaleString("uz-UZ")}
+                </span>
                 <span>•</span>
-                <span>Guruh: <strong>{result.group_code || result.answers?._meta?.group_code || "Umumiy"}</strong></span>
+                <span className="inline-flex items-center gap-1">
+                  <span>Guruh:</span>
+                  {(() => {
+                    const gCode = result.group_code || (answers as any)?._meta?.group_code;
+                    if (!gCode) return <span className="text-slate-400 italic">Umumiy</span>;
+                    const isCopied = copiedGroup === gCode;
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => copyGroupCode(gCode)}
+                        className={`font-mono font-bold text-xs px-2 py-0.5 rounded-md border transition-all inline-flex items-center gap-1 cursor-pointer active:scale-95 ${
+                          isCopied
+                            ? "bg-green-700 text-white border-green-700 shadow-sm"
+                            : "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300"
+                        }`}
+                        title="Guruh kodini nusxalash"
+                      >
+                        {isCopied ? (
+                          <>
+                            <Check size={10} className="text-white" />
+                            <span>Nusxalandi!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={9} className="text-emerald-700/70" />
+                            <span>{gCode}</span>
+                          </>
+                        )}
+                      </button>
+                    );
+                  })()}
+                </span>
                 <span>•</span>
                 <span>Vaqt: {result.duration_minutes || 60} daqiqa</span>
               </p>
@@ -101,7 +156,9 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
         <div className="p-6 bg-slate-50 border-b border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
             <span className="text-xs font-semibold text-slate-500">To'plangan Ball</span>
-            <p className="text-2xl font-black text-emerald-700 mt-1">{score} <span className="text-sm font-normal text-slate-400">/ {total}</span></p>
+            <p className="text-2xl font-black text-emerald-700 mt-1">
+              {score} <span className="text-sm font-normal text-slate-400">/ {total}</span>
+            </p>
           </div>
           <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
             <span className="text-xs font-semibold text-slate-500">Ko'rsatkich (Foiz)</span>
@@ -132,7 +189,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
             Barcha Savollar ({studentAssignedIds.length || questions.length})
           </button>
           {categories.map((cat) => {
-            const catCount = result.category_order?.[cat]?.length ?? questions.filter((q) => q.category === cat).length;
+            const catCount = categoryOrder?.[cat]?.length ?? questions.filter((q) => q.category === cat).length;
             return (
               <button
                 key={cat}
@@ -157,7 +214,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
             </div>
           ) : (
             filteredQuestions.map((q, idx) => {
-              const ans = result.answers?.[q.id] || result.answers?.[String(q.id)];
+              const ans = answers?.[q.id] || answers?.[String(q.id)];
               let isCorrect = false;
               let isNearMiss = false;
               let studentAnswerText = "Javob berilmadi";
@@ -243,13 +300,15 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 ${
-                        isCorrect
-                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                          : isNearMiss
-                          ? "bg-amber-50 text-amber-800 border border-amber-300"
-                          : "bg-rose-50 text-rose-800 border border-rose-200"
-                      }`}>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 ${
+                          isCorrect
+                            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                            : isNearMiss
+                            ? "bg-amber-50 text-amber-800 border border-amber-300"
+                            : "bg-rose-50 text-rose-800 border border-rose-200"
+                        }`}
+                      >
                         {isCorrect ? (
                           <>
                             <CheckCircle2 size={13} />
@@ -284,9 +343,11 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 pt-3 border-t border-slate-100 text-xs">
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                       <span className="text-slate-500 font-semibold block mb-1">Talabaning Javobi:</span>
-                      <pre className={`font-mono whitespace-pre-wrap font-semibold ${
-                        isCorrect ? "text-emerald-700" : isNearMiss ? "text-amber-700" : "text-rose-600"
-                      }`}>
+                      <pre
+                        className={`font-mono whitespace-pre-wrap font-semibold ${
+                          isCorrect ? "text-emerald-700" : isNearMiss ? "text-amber-700" : "text-rose-600"
+                        }`}
+                      >
                         {studentAnswerText}
                       </pre>
                     </div>

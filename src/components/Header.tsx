@@ -1,5 +1,5 @@
 import React from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, LogOut } from "lucide-react";
 import type { TabType } from "../types";
 
 type HeaderProps = {
@@ -7,6 +7,7 @@ type HeaderProps = {
   onRefresh: () => void;
   isRefreshing: boolean;
   isRealtimeConnected: boolean;
+  onLogout?: () => void;
 };
 
 export const Header: React.FC<HeaderProps> = ({
@@ -14,6 +15,7 @@ export const Header: React.FC<HeaderProps> = ({
   onRefresh,
   isRefreshing,
   isRealtimeConnected,
+  onLogout,
 }) => {
   const titles: Record<TabType, { title: string; subtitle: string }> = {
     dashboard: {
@@ -54,12 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-3">
         {/* Realtime Live Pill */}
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 shadow-sm">
-          <span className="relative flex h-2 w-2">
-            {isRealtimeConnected && (
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            )}
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600" />
-          </span>
+          <span className={`w-2 h-2 rounded-full ${isRealtimeConnected ? "bg-emerald-600" : "bg-slate-400"}`} />
           <span>Jonli Realtime</span>
         </div>
 
@@ -71,6 +68,16 @@ export const Header: React.FC<HeaderProps> = ({
           <RefreshCw size={14} className={isRefreshing ? "animate-spin text-green-700" : "text-slate-500"} />
           <span>Yangilash</span>
         </button>
+
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            className="p-2.5 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 transition-colors cursor-pointer"
+            title="Admin panelidan chiqish"
+          >
+            <LogOut size={16} />
+          </button>
+        )}
       </div>
     </header>
   );
