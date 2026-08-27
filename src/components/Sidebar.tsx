@@ -1,6 +1,7 @@
 import React from "react";
 import {
   LayoutDashboard,
+  Activity,
   FolderKanban,
   Users,
   BookOpenCheck,
@@ -16,6 +17,7 @@ type SidebarProps = {
   resultCount: number;
   questionCount: number;
   groupCount: number;
+  liveCount: number;
   isRealtimeConnected: boolean;
 };
 
@@ -25,6 +27,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   resultCount,
   questionCount,
   groupCount,
+  liveCount,
   isRealtimeConnected,
 }) => {
   const navItems = [
@@ -35,33 +38,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: null,
     },
     {
+      id: "live" as TabType,
+      label: "Jonli Kuzatuv",
+      icon: Activity,
+      badge: liveCount > 0 ? `${liveCount} faol` : null,
+      badgeColor: "bg-emerald-500 text-white font-bold animate-pulse shadow-sm shadow-emerald-500/30",
+    },
+    {
       id: "groups" as TabType,
-      label: "Guruhlar & Havolalar",
+      label: "Guruhlar",
       icon: FolderKanban,
       badge: groupCount > 0 ? String(groupCount) : null,
       badgeColor: "bg-purple-100 text-purple-800 border border-purple-200",
     },
     {
       id: "results" as TabType,
-      label: "Talabalar Natijalari",
+      label: "Natijalar",
       icon: Users,
       badge: resultCount > 0 ? String(resultCount) : null,
       badgeColor: "bg-emerald-100 text-emerald-800 border border-emerald-200",
     },
     {
       id: "questions" as TabType,
-      label: "Savollar Boshqaruvi",
+      label: "Savollar Bazasi",
       icon: BookOpenCheck,
       badge: questionCount > 0 ? String(questionCount) : null,
       badgeColor: "bg-blue-100 text-blue-800 border border-blue-200",
     },
     {
       id: "settings" as TabType,
-      label: "Imtihon Sozlamalari",
+      label: "Sozlamalar",
       icon: Settings,
       badge: null,
     },
   ];
+
 
   return (
     <aside className="w-72 bg-white border-r border-slate-200 flex flex-col justify-between shrink-0 h-screen sticky top-0 shadow-sm z-30">

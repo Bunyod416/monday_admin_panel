@@ -17,24 +17,28 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const titles: Record<TabType, { title: string; subtitle: string }> = {
     dashboard: {
-      title: "Umumiy Ko'rsatkichlar",
-      subtitle: "Imtihon statistikasi va talabalar natijalari real-vaqtdagi jonli tahlili",
+      title: "Dashboard",
+      subtitle: "Imtihon statistikasi va talabalar natijalari",
+    },
+    live: {
+      title: "Jonli Kuzatuv",
+      subtitle: "Real-vaqtda test topshirayotgan talabalar nazorati",
     },
     groups: {
-      title: "Guruhlar & Maxsus Havolalar",
-      subtitle: "Yangi guruh yaratish, limit (1-30 talaba) belgilash va havola ulashish",
+      title: "Guruhlar",
+      subtitle: "Imtihon guruhlari va maxsus havolalar",
     },
     results: {
-      title: "Talabalar Natijalari & Monitoring",
-      subtitle: "Barcha topshirilgan ishlarni real-vaqtda chuqur tekshirish",
+      title: "Natijalar",
+      subtitle: "Topshirilgan barcha imtihon natijalari",
     },
     questions: {
-      title: "Savollar Boshqaruvi",
-      subtitle: "Bazada mavjud savollarni ko'rish, yangi qo'shish va tahrirlash",
+      title: "Savollar Bazasi",
+      subtitle: "Bazada mavjud savollar boshqaruvi",
     },
     settings: {
-      title: "Imtihon Sozlamalari",
-      subtitle: "Savollar soni, imtihon vaqti va xavfsizlik qoidalarini sozlash",
+      title: "Sozlamalar",
+      subtitle: "Imtihon parametrlari va xavfsizlik qoidalari",
     },
   };
 

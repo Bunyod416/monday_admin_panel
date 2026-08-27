@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, Save } from "lucide-react";
 import type { Question, Category, QuestionType } from "../types";
 
 type QuestionModalProps = {
   isOpen: boolean;
   question: Question | null;
+  existingQuestions?: Question[];
   onClose: () => void;
   onSave: (question: Question) => Promise<void>;
 };
@@ -12,12 +13,14 @@ type QuestionModalProps = {
 export const QuestionModal: React.FC<QuestionModalProps> = ({
   isOpen,
   question,
+  existingQuestions = [],
   onClose,
   onSave,
 }) => {
-  if (!isOpen) return null;
-
-  const id = question ? question.id : Date.now() % 100000;
+  const nextId = existingQuestions.length > 0
+    ? Math.max(...existingQuestions.map((q) => q.id)) + 1
+    : 1;
+  const id = question ? question.id : nextId;
   const [category, setCategory] = useState<Category>(question ? question.category : "HTML");
   const [type, setType] = useState<QuestionType>(question ? question.type : "mcq");
   const [topic, setTopic] = useState<string>(question ? question.topic : "");
@@ -26,38 +29,74 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
   const [points, setPoints] = useState<number>(question ? question.points : 1);
 
   const [mcqOptions, setMcqOptions] = useState<string[]>(
-    question?.type === "mcq" ? question.options : ["", "", "", ""]
+    question?.type === "mcq" && Array.isArray(question.options) ? question.options : ["", "", "", ""]
   );
   const [mcqAnswer, setMcqAnswer] = useState<string>(
-    question?.type === "mcq" ? question.answer : "A"
+    question?.type === "mcq" ? String(question.answer || "A") : "A"
   );
 
   const [tfAnswer, setTfAnswer] = useState<boolean>(
-    question?.type === "truefalse" ? question.answer : true
+    question?.type === "truefalse" ? Boolean(question.answer) : true
   );
 
   const [codePlaceholder, setCodePlaceholder] = useState<string>(
     question?.type === "code" ? question.placeholder || "" : ""
   );
   const [codeAccepted, setCodeAccepted] = useState<string>(
-    question?.type === "code" ? question.accepted.join("\n---YOKI---\n") : ""
+    question?.type === "code" ? (Array.isArray(question.accepted) ? question.accepted.join("\n---YOKI---\n") : String(question.accepted || "")) : ""
   );
 
   const [dragTokens, setDragTokens] = useState<string>(
-    question?.type === "drag" ? question.tokens.join(", ") : ""
+    question?.type === "drag" ? (Array.isArray(question.tokens) ? question.tokens.join(", ") : String(question.tokens || "")) : ""
   );
   const [dragCorrectOrder, setDragCorrectOrder] = useState<string>(
-    question?.type === "drag" ? question.correctOrder.join(", ") : ""
+    question?.type === "drag" ? (Array.isArray(question.correctOrder) ? question.correctOrder.join(", ") : String(question.correctOrder || "")) : ""
   );
 
   const [fixBrokenCode, setFixBrokenCode] = useState<string>(
-    question?.type === "fix" ? question.brokenCode : ""
+    question?.type === "fix" ? question.brokenCode || "" : ""
   );
   const [fixAccepted, setFixAccepted] = useState<string>(
-    question?.type === "fix" ? question.accepted.join("\n---YOKI---\n") : ""
+    question?.type === "fix" ? (Array.isArray(question.accepted) ? question.accepted.join("\n---YOKI---\n") : String(question.accepted || "")) : ""
   );
 
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (question) {
+      setCategory(question.category);
+      setType(question.type);
+      setTopic(question.topic || "");
+      setQuestionText(question.question || "");
+      setHint(question.hint || "");
+      setPoints(question.points || 1);
+      setMcqOptions(question.type === "mcq" && Array.isArray(question.options) ? question.options : ["", "", "", ""]);
+      setMcqAnswer(question.type === "mcq" ? String(question.answer || "A") : "A");
+      setTfAnswer(question.type === "truefalse" ? Boolean(question.answer) : true);
+      setCodePlaceholder(question.type === "code" ? question.placeholder || "" : "");
+      setCodeAccepted(question.type === "code" ? (Array.isArray(question.accepted) ? question.accepted.join("\n---YOKI---\n") : String(question.accepted || "")) : "");
+      setDragTokens(question.type === "drag" ? (Array.isArray(question.tokens) ? question.tokens.join(", ") : String(question.tokens || "")) : "");
+      setDragCorrectOrder(question.type === "drag" ? (Array.isArray(question.correctOrder) ? question.correctOrder.join(", ") : String(question.correctOrder || "")) : "");
+      setFixBrokenCode(question.type === "fix" ? question.brokenCode || "" : "");
+      setFixAccepted(question.type === "fix" ? (Array.isArray(question.accepted) ? question.accepted.join("\n---YOKI---\n") : String(question.accepted || "")) : "");
+    } else {
+      setCategory("HTML");
+      setType("mcq");
+      setTopic("");
+      setQuestionText("");
+      setHint("");
+      setPoints(1);
+      setMcqOptions(["", "", "", ""]);
+      setMcqAnswer("A");
+      setTfAnswer(true);
+      setCodePlaceholder("");
+      setCodeAccepted("");
+      setDragTokens("");
+      setDragCorrectOrder("");
+      setFixBrokenCode("");
+      setFixAccepted("");
+    }
+  }, [question, isOpen]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -135,6 +174,8 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
       setIsSaving(false);
     }
   }
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-fade-in">

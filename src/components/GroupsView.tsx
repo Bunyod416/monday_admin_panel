@@ -47,7 +47,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   }
 
   function copyGroupLink(code: string) {
-    const studentUrl = `http://localhost:5173/?group=${code}`;
+    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:5173";
+    const studentUrl = `${origin}/?group=${code}`;
     navigator.clipboard.writeText(studentUrl);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2500);
@@ -124,10 +125,11 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                         <span className="px-2.5 py-0.5 rounded-md bg-purple-50 text-purple-800 font-mono font-extrabold text-xs border border-purple-200">
                           {g.group_code}
                         </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold border ${g.is_active
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold border ${
+                          g.is_active
                             ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                             : "bg-slate-100 text-slate-600 border-slate-200"
-                          }`}>
+                        }`}>
                           {g.is_active ? "● Faol" : "○ Yopilgan"}
                         </span>
                       </div>
@@ -135,10 +137,11 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
                     <button
                       onClick={() => onToggleGroupStatus(g.group_code, g.is_active)}
-                      className={`p-2 rounded-xl border transition-colors cursor-pointer ${g.is_active
+                      className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+                        g.is_active
                           ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
                           : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200"
-                        }`}
+                      }`}
                       title={g.is_active ? "Imtihonni yopish (talaba kira olmaydi)" : "Imtihonni ochish (faollashtirish)"}
                     >
                       <Power size={15} />
@@ -157,8 +160,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     </div>
                     <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-rose-500" : pct >= 70 ? "bg-amber-500" : "bg-green-600"
-                          }`}
+                        className={`h-full rounded-full transition-all ${
+                          pct >= 100 ? "bg-rose-500" : pct >= 70 ? "bg-amber-500" : "bg-green-600"
+                        }`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -181,10 +185,11 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 <div className="space-y-2 pt-2">
                   <button
                     onClick={() => copyGroupLink(g.group_code)}
-                    className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer ${isCopied
+                    className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                      isCopied
                         ? "bg-emerald-50 text-emerald-800 border-emerald-300"
                         : "bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200"
-                      }`}
+                    }`}
                   >
                     {isCopied ? <Check size={14} className="text-emerald-700" /> : <Copy size={14} />}
                     <span>{isCopied ? "Havola Nusxalandi! ✅" : "Talabalar Havolasini Nusxalash"}</span>
@@ -212,7 +217,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
           })
         )}
       </div>
-
+    
       {/* ────────────────────────────────────────────────────────
           BEAUTIFUL ANIMATED DELETE CONFIRMATION MODAL FOR GROUPS
       ──────────────────────────────────────────────────────── */}

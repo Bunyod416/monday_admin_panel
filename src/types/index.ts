@@ -75,6 +75,11 @@ export type SessionAnswer =
   | { type: "fix"; value: string }
   | { type: "dragdrop"; order: number[]; touched: boolean };
 
+export type SessionAnswerMeta = {
+  group_code?: string;
+  [key: string]: any;
+};
+
 export type ExamResult = {
   id: number;
   student_name: string;
@@ -82,7 +87,7 @@ export type ExamResult = {
   total_points: number;
   violation_count: number;
   duration_minutes: number;
-  answers: Record<string, SessionAnswer>;
+  answers: Record<string, SessionAnswer | SessionAnswerMeta | any>;
   category_order: Record<Category, number[]>;
   option_orders: Record<string, number[]>;
   drag_orders: Record<string, number[]>;
@@ -113,4 +118,22 @@ export type ExamSettings = {
   shuffleOptions?: boolean;
 };
 
-export type TabType = "dashboard" | "groups" | "results" | "questions" | "settings";
+export type LiveStudentTelemetry = {
+  studentName: string;
+  groupCode: string;
+  category: Category;
+  questionIndex: number;
+  questionId: number;
+  categoryTotal: number;
+  answeredCount: number;
+  totalQuestions: number;
+  progressPercent: number;
+  remainingSeconds: number;
+  elapsedSeconds: number;
+  violationCount: number;
+  status: "in_exam" | "warning" | "paused" | "blocked" | "submitted";
+  lastActiveAt: number;
+};
+
+export type TabType = "dashboard" | "live" | "groups" | "results" | "questions" | "settings";
+

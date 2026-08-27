@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, Save, Sparkles, Clock, Users } from "lucide-react";
 import type { Category, ExamGroup } from "../types";
 
@@ -13,8 +13,6 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
   onClose,
   onSave,
 }) => {
-  if (!isOpen) return null;
-
   const [groupName, setGroupName] = useState("");
   const [groupCode, setGroupCode] = useState(() => "GRP-" + Math.floor(1000 + Math.random() * 9000));
   const [maxStudents, setMaxStudents] = useState<number>(30);
@@ -36,6 +34,16 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
     const num = Math.floor(100 + Math.random() * 900);
     setGroupCode(`${prefix}-${num}`);
   }
+
+  useEffect(() => {
+    if (isOpen) {
+      setGroupName("");
+      setMaxStudents(30);
+      setDurationMinutes(60);
+      setCounts({ HTML: 30, CSS: 30, JavaScript: 30, Python: 30 });
+      generateRandomCode();
+    }
+  }, [isOpen]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,6 +69,8 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
       setIsSaving(false);
     }
   }
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-fade-in">
@@ -95,7 +105,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5 items-center justify-between">
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
                 <span>Guruh Kodi</span>
                 <button
                   type="button"
@@ -116,7 +126,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5 items-center gap-1.5">
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
                 <Users size={14} className="text-green-700" />
                 <span>Talabalar Soni Limiti (1 - 30)</span>
               </label>

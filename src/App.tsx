@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { Header } from "./components/Header";
 import { DashboardView } from "./components/DashboardView";
+import { LiveMonitoringView } from "./components/LiveMonitoringView";
 import { GroupsView } from "./components/GroupsView";
 import { CreateGroupModal } from "./components/CreateGroupModal";
 import { ResultsView } from "./components/ResultsView";
@@ -10,7 +11,7 @@ import { QuestionsView } from "./components/QuestionsView";
 import { QuestionModal } from "./components/QuestionModal";
 import { ExamConfigView } from "./components/ExamConfigView";
 import { supabase } from "./lib/supabase";
-import type { ExamResult, Question, TabType, ExamSettings, ExamGroup } from "./types";
+import type { ExamResult, Question, TabType, ExamSettings, ExamGroup, LiveStudentTelemetry } from "./types";
 import { Bell } from "lucide-react";
 
 export default function App() {
@@ -18,8 +19,10 @@ export default function App() {
   const [results, setResults] = useState<ExamResult[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [groups, setGroups] = useState<ExamGroup[]>([]);
+  const [liveStudents, setLiveStudents] = useState<Record<string, LiveStudentTelemetry>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+
 
   // Realtime Live Toast Notification
   const [realtimeNotification, setRealtimeNotification] = useState<string | null>(null);
@@ -69,11 +72,11 @@ export default function App() {
         .order("id", { ascending: false });
 
       if (!resultsError && resultsData) {
-        const mapped = (resultsData || []).map((r: any) => ({
+        const parsedResults = resultsData.map((r: any): ExamResult => ({
           ...r,
-          group_code: r.group_code || r.answers?._meta?.group_code || "",
+          group_code: r.group_code || (r.answers as any)?._meta?.group_code || undefined,
         }));
-        setResults(mapped as ExamResult[]);
+        setResults(parsedResults);
       }
 
       // 2. Fetch questions
@@ -171,10 +174,21 @@ export default function App() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "results" },
         (payload) => {
-          const newResult = payload.new as ExamResult;
+          const raw = payload.new as any;
+          const newResult: ExamResult = {
+            ...raw,
+            group_code: raw.group_code || (raw.answers as any)?._meta?.group_code || undefined,
+          };
           setResults((prev) => {
             if (prev.some((r) => r.id === newResult.id)) return prev;
             return [newResult, ...prev];
+          });
+          // Remove from live active list if present
+          setLiveStudents((prev) => {
+            if (!prev[newResult.student_name]) return prev;
+            const updated = { ...prev };
+            delete updated[newResult.student_name];
+            return updated;
           });
           showNotification(`🎉 Yangi natija: ${newResult.student_name} (${newResult.score} ball)`);
         }
@@ -197,7 +211,47 @@ export default function App() {
         }
       });
 
-    // ⚡ 2. Realtime channel for EXAM_GROUPS
+    // ⚡ 2. Realtime channel for LIVE STUDENTS TELEMETRY & PRESENCE
+    const liveChannel = supabase
+      .channel("exam_live_stream_global")
+      .on("broadcast", { event: "student_live_telemetry" }, ({ payload }) => {
+        const telemetry = payload as LiveStudentTelemetry;
+        if (!telemetry || !telemetry.studentName) return;
+
+        setLiveStudents((prev) => {
+          if (telemetry.status === "submitted") {
+            const next = { ...prev };
+            delete next[telemetry.studentName];
+            return next;
+          }
+          return {
+            ...prev,
+            [telemetry.studentName]: {
+              ...telemetry,
+              lastActiveAt: Date.now(),
+            },
+          };
+        });
+      })
+      .subscribe();
+
+    // ⚡ Periodic cleanup of stale offline students (older than 45 seconds)
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      setLiveStudents((prev) => {
+        let changed = false;
+        const updated = { ...prev };
+        for (const [name, data] of Object.entries(prev)) {
+          if (now - (data.lastActiveAt || 0) > 45000) {
+            delete updated[name];
+            changed = true;
+          }
+        }
+        return changed ? updated : prev;
+      });
+    }, 5000);
+
+    // ⚡ 3. Realtime channel for EXAM_GROUPS
     const groupsChannel = supabase
       .channel("admin_realtime_groups")
       .on(
@@ -222,7 +276,7 @@ export default function App() {
       )
       .subscribe();
 
-    // ⚡ 3. Realtime channel for QUESTIONS
+    // ⚡ 4. Realtime channel for QUESTIONS
     const questionsChannel = supabase
       .channel("admin_realtime_questions")
       .on(
@@ -236,23 +290,42 @@ export default function App() {
 
     // Cleanup channels on unmount
     return () => {
+      clearInterval(cleanupInterval);
       supabase.removeChannel(resultsChannel);
+      supabase.removeChannel(liveChannel);
       supabase.removeChannel(groupsChannel);
       supabase.removeChannel(questionsChannel);
     };
   }, []);
 
-  async function handleCreateGroup(group: ExamGroup) {
-    const { data, error } = await supabase.from("exam_groups").insert({
-      group_name: group.group_name,
-      group_code: group.group_code,
-      counts: group.counts,
-      duration_minutes: group.duration_minutes,
-      max_students: group.max_students,
-      is_active: group.is_active,
-    }).select().single();
 
-    const createdGroup = (data && !error) ? {
+  async function handleCreateGroup(group: ExamGroup) {
+    const cleanCode = group.group_code.trim().toUpperCase();
+    const groupId = group.id ? String(group.id) : `grp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+    const payload = {
+      id: groupId,
+      group_name: group.group_name.trim(),
+      group_code: cleanCode,
+      counts: group.counts,
+      duration_minutes: Number(group.duration_minutes) || 60,
+      max_students: Number(group.max_students) || 30,
+      is_active: group.is_active !== false,
+    };
+
+    const { data, error } = await supabase
+      .from("exam_groups")
+      .upsert(payload, { onConflict: "group_code" })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Failed to save group to Supabase:", error);
+      alert(`Guruhni saqlashda xatolik: ${error.message}`);
+      throw error;
+    }
+
+    const createdGroup: ExamGroup = {
       id: data.id,
       group_name: data.group_name,
       group_code: data.group_code,
@@ -260,38 +333,62 @@ export default function App() {
       duration_minutes: Number(data.duration_minutes) || 60,
       max_students: Number(data.max_students) || 30,
       is_active: data.is_active !== false,
-    } : group;
+      created_at: data.created_at,
+    };
 
     setGroups((prev) => {
       const updated = [createdGroup, ...prev.filter((g) => g.group_code !== createdGroup.group_code)];
       localStorage.setItem("monday_exam_groups_cache", JSON.stringify(updated));
       return updated;
     });
+
+    showNotification(`✅ Guruh yaratildi: ${createdGroup.group_name} (${createdGroup.group_code})`);
   }
 
   async function handleToggleGroupStatus(groupCode: string, currentStatus: boolean) {
     const newStatus = !currentStatus;
-    await supabase.from("exam_groups").update({ is_active: newStatus }).eq("group_code", groupCode);
+    const cleanCode = groupCode.trim().toUpperCase();
+    const { error } = await supabase
+      .from("exam_groups")
+      .update({ is_active: newStatus })
+      .ilike("group_code", cleanCode);
+
+    if (error) {
+      console.error("Error toggling group status:", error);
+    }
+
     setGroups((prev) => {
-      const updated = prev.map((g) => g.group_code === groupCode ? { ...g, is_active: newStatus } : g);
+      const updated = prev.map((g) => g.group_code.toUpperCase() === cleanCode ? { ...g, is_active: newStatus } : g);
       localStorage.setItem("monday_exam_groups_cache", JSON.stringify(updated));
       return updated;
     });
   }
 
   async function handleDeleteGroup(groupCode: string) {
-    await supabase.from("exam_groups").delete().eq("group_code", groupCode);
-    setGroups((prev) => {
-      const updated = prev.filter((g) => g.group_code !== groupCode);
-      localStorage.setItem("monday_exam_groups_cache", JSON.stringify(updated));
-      return updated;
-    });
+    const cleanCode = groupCode.trim().toUpperCase();
+    const { error } = await supabase
+      .from("exam_groups")
+      .delete()
+      .ilike("group_code", cleanCode);
+
+    if (error) {
+      console.error("Error deleting group:", error);
+      alert("Guruhni o'chirishda xatolik yuz berdi");
+    } else {
+      setGroups((prev) => {
+        const updated = prev.filter((g) => g.group_code.toUpperCase() !== cleanCode);
+        localStorage.setItem("monday_exam_groups_cache", JSON.stringify(updated));
+        return updated;
+      });
+      showNotification(`🗑 Guruh o'chirildi: ${cleanCode}`);
+    }
   }
 
   function handleViewResultsForGroup(groupCode: string) {
     setSelectedGroupFilter(groupCode);
     setActiveTab("results");
   }
+
 
   async function handleSaveQuestion(q: Question) {
     const record = {
@@ -374,6 +471,7 @@ export default function App() {
         resultCount={results.length}
         questionCount={questions.length}
         groupCount={groups.length}
+        liveCount={Object.values(liveStudents).filter((s) => s.status !== "submitted").length}
         isRealtimeConnected={isRealtimeConnected}
       />
 
@@ -391,12 +489,21 @@ export default function App() {
             <DashboardView
               results={results}
               questions={questions}
+              liveStudents={Object.values(liveStudents)}
               setActiveTab={setActiveTab}
               onInspectStudent={setInspectingResult}
             />
           )}
 
+          {activeTab === "live" && (
+            <LiveMonitoringView
+              liveStudents={Object.values(liveStudents)}
+              groups={groups}
+            />
+          )}
+
           {activeTab === "groups" && (
+
             <GroupsView
               groups={groups}
               results={results}
@@ -453,6 +560,7 @@ export default function App() {
       <QuestionModal
         isOpen={isQuestionModalOpen}
         question={editingQuestion}
+        existingQuestions={questions}
         onClose={() => {
           setIsQuestionModalOpen(false);
           setEditingQuestion(null);

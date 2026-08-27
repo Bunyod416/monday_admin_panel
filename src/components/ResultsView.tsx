@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Search,
   Download,
@@ -31,6 +31,10 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   const [filterGroup, setFilterGroup] = useState<string>(selectedGroupFilter);
   const [sortBy, setSortBy] = useState<"time" | "score" | "violations">("time");
 
+  useEffect(() => {
+    setFilterGroup(selectedGroupFilter);
+  }, [selectedGroupFilter]);
+
   // State for animated delete confirmation modal
   const [itemToDelete, setItemToDelete] = useState<ExamResult | null>(null);
 
@@ -48,7 +52,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
       let groupMatches = true;
       if (filterGroup !== "all") {
-        const rGroup = (r.group_code || (r.answers as unknown as { _meta?: { group_code?: string } })?._meta?.group_code || "").toString().toUpperCase();
+        const rGroup = (r.group_code || r.answers?._meta?.group_code || "").toString().toUpperCase();
         groupMatches = rGroup === filterGroup.toUpperCase();
       }
 
@@ -60,14 +64,30 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       return new Date(b.submitted_at || b.created_at).getTime() - new Date(a.submitted_at || a.created_at).getTime();
     });
 
+  function getTotalPoints(r: ExamResult): number {
+    if (Number(r.total_points) > 0) return Number(r.total_points);
+    if (r.category_order) {
+      const sum = Object.values(r.category_order).reduce(
+        (acc: number, arr: any) => acc + (Array.isArray(arr) ? arr.length : 0),
+        0
+      );
+      if (sum > 0) return sum;
+    }
+    const ansKeys = Object.keys(r.answers || {}).filter(
+      (k) => k !== "_meta" && !isNaN(Number(k))
+    );
+    if (ansKeys.length > 0) return ansKeys.length;
+    return 120;
+  }
+
   function exportCSV() {
     if (results.length === 0) return;
     const headers = ["ID", "Talaba Ismi", "Guruh Kodi", "Ball", "Jami Ball", "Foiz", "Qoidabuzarlik", "Topshirilgan Vaqt"];
     const rows = filtered.map((r) => {
-      const score = Number(r.score);
-      const total = Number(r.total_points) || 120;
-      const pct = Math.round((score / total) * 100);
-      const grp = r.group_code || (r.answers as unknown as { _meta?: { group_code?: string } })?._meta?.group_code || "Umumiy";
+      const score = Number(r.score) || 0;
+      const total = getTotalPoints(r);
+      const pct = total > 0 ? Math.round((score / total) * 100) : 0;
+      const grp = r.group_code || r.answers?._meta?.group_code || "Umumiy";
       const time = new Date(r.submitted_at || r.created_at).toLocaleString("uz-UZ");
       return [r.id, `"${r.student_name}"`, `"${grp}"`, score, total, `"${pct}%"`, r.violation_count || 0, `"${time}"`].join(",");
     });
@@ -188,12 +208,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 </tr>
               ) : (
                 filtered.map((r, idx) => {
-                  const score = Number(r.score);
-                  const total = Number(r.total_points) || 120;
-                  const pct = Math.round((score / total) * 100);
+                  const score = Number(r.score) || 0;
+                  const total = getTotalPoints(r);
+                  const pct = total > 0 ? Math.round((score / total) * 100) : 0;
                   const isPass = pct >= 60;
-                  const grp = r.group_code || (r.answers as unknown as { _meta?: { group_code?: string } })?._meta?.group_code || "Umumiy";
-                  // const grp = r.group_code || r.answers?._meta?.group_code;
+                  const grp = r.group_code || r.answers?._meta?.group_code;
 
                   return (
                     <tr
@@ -229,14 +248,15 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                         <span className="text-xs text-slate-400"> / {total}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${pct >= 86
-                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                          : pct >= 71
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
+                          pct >= 86
+                            ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                            : pct >= 71
                             ? "bg-blue-50 text-blue-800 border-blue-200"
                             : pct >= 56
-                              ? "bg-amber-50 text-amber-800 border-amber-200"
-                              : "bg-rose-50 text-rose-800 border-rose-200"
-                          }`}>
+                            ? "bg-amber-50 text-amber-800 border-amber-200"
+                            : "bg-rose-50 text-rose-800 border-rose-200"
+                        }`}>
                           {pct}%
                         </span>
                       </td>
@@ -321,10 +341,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 </span>
               </div>
               <div className="text-slate-500 flex items-center gap-2">
-                {/* <span>Guruh: {itemToDelete.group_code || itemToDelete.answers?._meta?.group_code || "Umumiy"}</span> */}
-                <span>Guruh: {itemToDelete.group_code || (itemToDelete.answers as unknown as { _meta?: { group_code?: string } })?._meta?.group_code || "Umumiy"}</span>
-                <span>•</span>
-                <span>Qoidabuzarliklar: {itemToDelete.violation_count || 0} ta</span>
+                <span>Guruh: {itemToDelete.group_code || itemToDelete.answers?._meta?.group_code || "Umumiy"}</span>
                 <span>•</span>
                 <span>{new Date(itemToDelete.submitted_at || itemToDelete.created_at).toLocaleString("uz-UZ")}</span>
               </div>

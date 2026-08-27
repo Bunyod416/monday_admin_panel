@@ -259,56 +259,56 @@ export const ExamConfigView: React.FC<ExamConfigViewProps> = ({
             </div>
           </div>
 
-          {/* Toggle Switches */}
-          <div className="space-y-3 pt-2">
-            <label className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200 cursor-pointer">
-              <div className="flex items-center gap-3">
-                <Maximize size={18} className="text-green-700" />
-                <div>
-                  <p className="text-xs font-bold text-slate-800">To'liq ekran rejimini majburlash</p>
-                  <p className="text-[11px] text-slate-500">Talaba imtihon davomida faqat to'liq ekranda ishlashi shart</p>
+            {/* Toggle Switches */}
+            <div className="space-y-3 pt-2">
+              <label className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200 cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <Maximize size={18} className="text-green-700" />
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">To'liq ekran majburiy</p>
+                    <p className="text-[11px] text-slate-500">Talaba to'liq ekranda ishlashi shart</p>
+                  </div>
                 </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={enforceFullscreen}
-                onChange={(e) => setEnforceFullscreen(e.target.checked)}
-                className="w-5 h-5 accent-green-700 rounded cursor-pointer"
-              />
-            </label>
+                <input
+                  type="checkbox"
+                  checked={enforceFullscreen}
+                  onChange={(e) => setEnforceFullscreen(e.target.checked)}
+                  className="w-5 h-5 accent-green-700 rounded cursor-pointer"
+                />
+              </label>
 
-            <label className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200 cursor-pointer">
-              <div className="flex items-center gap-3">
-                <Shuffle size={18} className="text-purple-700" />
-                <div>
-                  <p className="text-xs font-bold text-slate-800">Savollar tartibini aralashtirish (Shuffle Questions)</p>
-                  <p className="text-[11px] text-slate-500">Har bir talabaga savollar tasodifiy tartibda chiqadi</p>
+              <label className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200 cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <Shuffle size={18} className="text-purple-700" />
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">Savollarni aralashtirish</p>
+                    <p className="text-[11px] text-slate-500">Savollar tasodifiy tartibda chiqadi</p>
+                  </div>
                 </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={shuffleQuestions}
-                onChange={(e) => setShuffleQuestions(e.target.checked)}
-                className="w-5 h-5 accent-green-700 rounded cursor-pointer"
-              />
-            </label>
+                <input
+                  type="checkbox"
+                  checked={shuffleQuestions}
+                  onChange={(e) => setShuffleQuestions(e.target.checked)}
+                  className="w-5 h-5 accent-green-700 rounded cursor-pointer"
+                />
+              </label>
 
-            <label className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200 cursor-pointer">
-              <div className="flex items-center gap-3">
-                <Shuffle size={18} className="text-blue-700" />
-                <div>
-                  <p className="text-xs font-bold text-slate-800">Variantlar tartibini aralashtirish (Shuffle Options)</p>
-                  <p className="text-[11px] text-slate-500">Test variantlari (A, B, C, D) har bir talabada turlicha joylashadi</p>
+              <label className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200 cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <Shuffle size={18} className="text-blue-700" />
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">Variantlarni aralashtirish</p>
+                    <p className="text-[11px] text-slate-500">Variantlar (A, B, C, D) aralashtiriladi</p>
+                  </div>
                 </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={shuffleOptions}
-                onChange={(e) => setShuffleOptions(e.target.checked)}
-                className="w-5 h-5 accent-green-700 rounded cursor-pointer"
-              />
-            </label>
-          </div>
+                <input
+                  type="checkbox"
+                  checked={shuffleOptions}
+                  onChange={(e) => setShuffleOptions(e.target.checked)}
+                  className="w-5 h-5 accent-green-700 rounded cursor-pointer"
+                />
+              </label>
+            </div>
         </div>
 
         {/* Success Alert */}

@@ -7,12 +7,14 @@ import {
   TrendingUp,
   Clock,
   ArrowRight,
+  Activity,
 } from "lucide-react";
-import type { ExamResult, Question, TabType } from "../types";
+import type { ExamResult, Question, TabType, LiveStudentTelemetry } from "../types";
 
 type DashboardViewProps = {
   results: ExamResult[];
   questions: Question[];
+  liveStudents?: LiveStudentTelemetry[];
   setActiveTab: (tab: TabType) => void;
   onInspectStudent: (result: ExamResult) => void;
 };
@@ -20,9 +22,11 @@ type DashboardViewProps = {
 export const DashboardView: React.FC<DashboardViewProps> = ({
   results,
   questions,
+  liveStudents = [],
   setActiveTab,
   onInspectStudent,
 }) => {
+  const activeTakingCount = liveStudents.filter((s) => s.status !== "submitted").length;
   const totalSubmissions = results.length;
   const avgScore = totalSubmissions
     ? Math.round(results.reduce((s, r) => s + Number(r.score), 0) / totalSubmissions)
@@ -37,16 +41,52 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const jsCount = questions.filter((q) => q.category === "JavaScript").length;
   const pyCount = questions.filter((q) => q.category === "Python").length;
 
-  const gradeA = results.filter((r) => Number(r.score) >= 86).length;
-  const gradeB = results.filter((r) => Number(r.score) >= 71 && Number(r.score) < 86).length;
-  const gradeC = results.filter((r) => Number(r.score) >= 56 && Number(r.score) < 71).length;
-  const gradeF = results.filter((r) => Number(r.score) < 56).length;
+  function getResultPct(r: ExamResult): number {
+    const total = Number(r.total_points) || 120;
+    return total > 0 ? (Number(r.score) / total) * 100 : 0;
+  }
+
+  const gradeA = results.filter((r) => getResultPct(r) >= 86).length;
+  const gradeB = results.filter((r) => getResultPct(r) >= 71 && getResultPct(r) < 86).length;
+  const gradeC = results.filter((r) => getResultPct(r) >= 56 && getResultPct(r) < 71).length;
+  const gradeF = results.filter((r) => getResultPct(r) < 56).length;
 
   const recentResults = results.slice(0, 5);
 
   return (
     <div className="space-y-8">
+      {/* Live Active Students Banner (if any) */}
+      {activeTakingCount > 0 && (
+        <div className="p-5 rounded-3xl bg-gradient-to-r from-emerald-900 to-green-800 text-white shadow-lg border border-emerald-700 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-700/80 border border-emerald-500 flex items-center justify-center relative">
+              <Activity size={20} className="text-emerald-200 animate-pulse" />
+              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400" />
+              </span>
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-emerald-100 flex items-center gap-2">
+                Hozir {activeTakingCount} nafar talaba test topshirmoqda!
+              </h4>
+              <p className="text-xs text-emerald-300 mt-0.5">
+                {liveStudents.map((s) => s.studentName).join(", ")}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setActiveTab("live")}
+            className="px-4 py-2 rounded-xl bg-white text-emerald-900 font-bold text-xs shadow-md hover:bg-emerald-50 transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+          >
+            Jonli monitoringni ochish <ArrowRight size={14} />
+          </button>
+        </div>
+      )}
+
       {/* 4 Stat Cards */}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200">
           <div className="flex items-center justify-between">
