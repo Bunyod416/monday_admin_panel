@@ -6,7 +6,6 @@ type HeaderProps = {
   activeTab: TabType;
   onRefresh: () => void;
   isRefreshing: boolean;
-  isRealtimeConnected: boolean;
   onLogout?: () => void;
 };
 
@@ -14,7 +13,6 @@ export const Header: React.FC<HeaderProps> = ({
   activeTab,
   onRefresh,
   isRefreshing,
-  isRealtimeConnected,
   onLogout,
 }) => {
   const titles: Record<TabType, { title: string; subtitle: string }> = {
@@ -47,23 +45,19 @@ export const Header: React.FC<HeaderProps> = ({
   const current = titles[activeTab];
 
   return (
-    <header className="h-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-8 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+    <header className="h-14 bg-white border-b border-slate-200 px-4 lg:px-6 flex items-center justify-between sticky top-0 z-20">
       <div>
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight">{current.title}</h2>
-        <p className="text-xs text-slate-500 mt-0.5">{current.subtitle}</p>
+        <h2 className="text-base lg:text-lg font-bold text-slate-900 tracking-tight">{current.title}</h2>
+        <p className="text-[11px] text-slate-500 leading-none mt-0.5">{current.subtitle}</p>
       </div>
 
-      <div className="flex items-center gap-3">
-        {/* Realtime Live Pill */}
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 shadow-sm">
-          <span className={`w-2 h-2 rounded-full ${isRealtimeConnected ? "bg-emerald-600" : "bg-slate-400"}`} />
-          <span>Jonli Realtime</span>
-        </div>
+      <div className="flex items-center gap-2 sm:gap-3">
+
 
         <button
           onClick={onRefresh}
           disabled={isRefreshing}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200 transition-all hover:border-slate-300 shadow-sm disabled:opacity-50 cursor-pointer"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold border border-slate-200 transition-all disabled:opacity-50 cursor-pointer"
         >
           <RefreshCw size={14} className={isRefreshing ? "animate-spin text-green-700" : "text-slate-500"} />
           <span>Yangilash</span>
@@ -72,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
         {onLogout && (
           <button
             onClick={onLogout}
-            className="p-2.5 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 transition-colors cursor-pointer"
             title="Admin panelidan chiqish"
           >
             <LogOut size={16} />

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Lock, Eye, EyeOff, ArrowRight, ShieldCheck, AlertCircle } from "lucide-react";
+import { writeStorage } from "../lib/storage";
 
 type AdminLoginProps = {
   onSuccess: () => void;
@@ -14,7 +15,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess }) => {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (password.trim() === "JAMSHID") {
-      localStorage.setItem("monday_admin_auth", "true");
+      writeStorage("monday_admin_auth", "true");
       setError(false);
       onSuccess();
     } else {
@@ -57,8 +58,8 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess }) => {
                 autoFocus
                 required
                 className={`w-full bg-slate-50 border rounded-2xl pl-4 pr-11 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 ${error
-                    ? "border-rose-300 bg-rose-50/30 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20"
-                    : "border-slate-200 focus:bg-white focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
+                  ? "border-rose-300 bg-rose-50/30 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20"
+                  : "border-slate-200 focus:bg-white focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
                   }`}
               />
               <button

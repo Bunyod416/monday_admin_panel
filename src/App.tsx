@@ -12,12 +12,13 @@ import { QuestionModal } from "./components/QuestionModal";
 import { ExamConfigView } from "./components/ExamConfigView";
 import { AdminLogin } from "./components/AdminLogin";
 import { supabase } from "./lib/supabase";
+import { readStorage, writeStorage, removeStorage } from "./lib/storage";
 import type { ExamResult, Question, TabType, ExamSettings, ExamGroup, LiveStudentTelemetry } from "./types";
 import { Bell } from "lucide-react";
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem("monday_admin_auth") === "true";
+    return readStorage("monday_admin_auth") === "true";
   });
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
   const [results, setResults] = useState<ExamResult[]>([]);
@@ -25,7 +26,6 @@ export default function App() {
   const [groups, setGroups] = useState<ExamGroup[]>([]);
   const [liveStudents, setLiveStudents] = useState<Record<string, LiveStudentTelemetry>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
 
 
   // Realtime Live Toast Notification
@@ -46,9 +46,9 @@ export default function App() {
 
   // Settings
   const [settings, setSettings] = useState<ExamSettings>(() => {
-    const saved = localStorage.getItem("monday_exam_settings");
+    const saved = readStorage("monday_exam_settings");
     if (saved) {
-      try { return JSON.parse(saved); } catch {}
+      try { return JSON.parse(saved); } catch { }
     }
     return {
       counts: { HTML: 30, CSS: 30, JavaScript: 30, Python: 30 },
@@ -147,9 +147,9 @@ export default function App() {
           created_at: g.created_at,
         }));
         setGroups(parsed);
-        localStorage.setItem("monday_exam_groups_cache", JSON.stringify(parsed));
+        writeStorage("monday_exam_groups_cache", JSON.stringify(parsed));
       } else {
-        const cached = localStorage.getItem("monday_exam_groups_cache");
+        const cached = readStorage("monday_exam_groups_cache");
         if (cached) setGroups(JSON.parse(cached));
       }
 
@@ -171,7 +171,7 @@ export default function App() {
           shuffleOptions: settingsData.shuffle_options !== false,
         };
         setSettings(loadedSettings);
-        localStorage.setItem("monday_exam_settings", JSON.stringify(loadedSettings));
+        writeStorage("monday_exam_settings", JSON.stringify(loadedSettings));
       }
     } catch (err) {
       console.error("Data load failed:", err);
@@ -237,11 +237,7 @@ export default function App() {
         }
       )
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          setIsRealtimeConnected(true);
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          setIsRealtimeConnected(false);
-        }
+        if (status !== "SUBSCRIBED") console.warn("Realtime status:", status);
       });
 
     // ⚡ 2. Realtime channel for LIVE STUDENTS TELEMETRY & PRESENCE
@@ -281,8 +277,10 @@ export default function App() {
         const updated = { ...prev };
         for (const [key, data] of Object.entries(prev)) {
           if (now - (data.lastActiveAt || 0) > 45000) {
-            delete updated[key];
-            changed = true;
+            if (data.status !== "inactive") {
+              updated[key] = { ...data, status: "inactive" };
+              changed = true;
+            }
           }
         }
         return changed ? updated : prev;
@@ -306,7 +304,7 @@ export default function App() {
               is_active: g.is_active !== false,
             }));
             setGroups(parsed);
-            localStorage.setItem("monday_exam_groups_cache", JSON.stringify(parsed));
+            writeStorage("monday_exam_groups_cache", JSON.stringify(parsed));
           }
         }
       )
@@ -371,7 +369,7 @@ export default function App() {
 
     setGroups((prev) => {
       const updated = [createdGroup, ...prev.filter((g) => g.group_code !== createdGroup.group_code)];
-      localStorage.setItem("monday_exam_groups_cache", JSON.stringify(updated));
+      writeStorage("monday_exam_groups_cache", JSON.stringify(updated));
       return updated;
     });
 
@@ -392,7 +390,7 @@ export default function App() {
 
     setGroups((prev) => {
       const updated = prev.map((g) => g.group_code.toUpperCase() === cleanCode ? { ...g, is_active: newStatus } : g);
-      localStorage.setItem("monday_exam_groups_cache", JSON.stringify(updated));
+      writeStorage("monday_exam_groups_cache", JSON.stringify(updated));
       return updated;
     });
   }
@@ -432,7 +430,7 @@ export default function App() {
     // 3. Update groups state and cache
     setGroups((prev) => {
       const updated = prev.filter((g) => g.group_code.toUpperCase() !== cleanCode);
-      localStorage.setItem("monday_exam_groups_cache", JSON.stringify(updated));
+      writeStorage("monday_exam_groups_cache", JSON.stringify(updated));
       return updated;
     });
 
@@ -468,6 +466,30 @@ export default function App() {
     await loadData();
   }
 
+  async function handleImportQuestions(importedQuestions: Question[]) {
+    const records = importedQuestions.map((q) => ({
+      id: q.id,
+      type: q.type,
+      category: q.category,
+      topic: q.topic,
+      question: q.question,
+      options: (q as any).options || null,
+      answer: (q as any).answer !== undefined ? String((q as any).answer) : null,
+      hint: q.hint || null,
+      points: q.points || 1,
+      placeholder: (q as any).placeholder || null,
+      accepted: (q as any).accepted || null,
+      tokens: (q as any).tokens || null,
+      correct_order: (q as any).correctOrder || null,
+      broken_code: (q as any).brokenCode || null,
+    }));
+
+    const { error } = await supabase.from("questions").upsert(records, { onConflict: "id" });
+    if (error) throw error;
+    await loadData();
+    showNotification(`${importedQuestions.length} ta savol bazaga qo'shildi`);
+  }
+
   async function handleDeleteQuestion(id: number) {
     const { error } = await supabase.from("questions").delete().eq("id", id);
     if (error) {
@@ -486,9 +508,43 @@ export default function App() {
     }
   }
 
+  async function handleSaveCorrection(
+    resultId: number,
+    questionId: number,
+    override: boolean | null,
+    scoreDelta: number,
+  ) {
+    const currentResult = results.find((item) => item.id === resultId);
+    if (!currentResult) return;
+
+    const currentAnswers = typeof currentResult.answers === "string"
+      ? (() => { try { return JSON.parse(currentResult.answers); } catch { return {}; } })()
+      : currentResult.answers || {};
+    const nextMeta = { ...(currentAnswers._meta || {}), admin_overrides: { ...(currentAnswers._meta?.admin_overrides || {}) } };
+
+    if (override === null) delete nextMeta.admin_overrides[String(questionId)];
+    else nextMeta.admin_overrides[String(questionId)] = override;
+
+    const nextAnswers = { ...currentAnswers, _meta: nextMeta };
+    const nextScore = Math.max(0, Number(currentResult.score) + scoreDelta);
+    const { error } = await supabase
+      .from("results")
+      .update({ answers: nextAnswers, score: nextScore })
+      .eq("id", resultId);
+
+    if (error) {
+      alert("Natijani tuzatishda xatolik yuz berdi");
+      return;
+    }
+
+    const updatedResult = { ...currentResult, answers: nextAnswers, score: nextScore };
+    setResults((prev) => prev.map((item) => item.id === resultId ? updatedResult : item));
+    setInspectingResult((current) => current?.id === resultId ? updatedResult : current);
+  }
+
   async function handleSaveSettings(newSettings: ExamSettings) {
     setSettings(newSettings);
-    localStorage.setItem("monday_exam_settings", JSON.stringify(newSettings));
+    writeStorage("monday_exam_settings", JSON.stringify(newSettings));
 
     try {
       await supabase.from("exam_settings").upsert({
@@ -530,8 +586,7 @@ export default function App() {
         resultCount={results.length}
         questionCount={questions.length}
         groupCount={groups.length}
-        liveCount={Object.values(liveStudents).filter((s) => s.status !== "submitted").length}
-        isRealtimeConnected={isRealtimeConnected}
+        liveCount={Object.values(liveStudents).filter((s) => s.status !== "submitted" && s.status !== "inactive").length}
       />
 
       {/* Main Content Area */}
@@ -540,87 +595,92 @@ export default function App() {
           activeTab={activeTab}
           onRefresh={loadData}
           isRefreshing={isRefreshing}
-          isRealtimeConnected={isRealtimeConnected}
           onLogout={() => {
-            localStorage.removeItem("monday_admin_auth");
+            removeStorage("monday_admin_auth");
             setIsAuthenticated(false);
           }}
         />
 
         <main className="p-8 max-w-7xl w-full mx-auto flex-1">
-          {activeTab === "dashboard" && (
-            <DashboardView
-              results={results}
+          {inspectingResult ? (
+            <StudentDetailModal
+              result={inspectingResult}
               questions={questions}
-              liveStudents={Object.values(liveStudents)}
-              setActiveTab={setActiveTab}
-              onInspectStudent={setInspectingResult}
+              fullPage
+              onClose={() => setInspectingResult(null)}
+              onSaveCorrection={handleSaveCorrection}
             />
-          )}
+          ) : <>
+            {activeTab === "dashboard" && (
+              <DashboardView
+                results={results}
+                questions={questions}
+                liveStudents={Object.values(liveStudents)}
+                setActiveTab={setActiveTab}
+                onInspectStudent={setInspectingResult}
+              />
+            )}
 
-          {activeTab === "live" && (
-            <LiveMonitoringView
-              liveStudents={Object.values(liveStudents)}
-              groups={groups}
-            />
-          )}
+            {activeTab === "live" && (
+              <LiveMonitoringView
+                liveStudents={Object.values(liveStudents)}
+                groups={groups}
+              />
+            )}
 
-          {activeTab === "groups" && (
+            {activeTab === "groups" && (
 
-            <GroupsView
-              groups={groups}
-              results={results}
-              onAddGroup={() => setIsGroupModalOpen(true)}
-              onToggleGroupStatus={handleToggleGroupStatus}
-              onDeleteGroup={handleDeleteGroup}
-              onViewResultsForGroup={handleViewResultsForGroup}
-            />
-          )}
+              <GroupsView
+                groups={groups}
+                results={results}
+                onAddGroup={() => setIsGroupModalOpen(true)}
+                onToggleGroupStatus={handleToggleGroupStatus}
+                onDeleteGroup={handleDeleteGroup}
+                onViewResultsForGroup={handleViewResultsForGroup}
+              />
+            )}
 
-          {activeTab === "results" && (
-            <ResultsView
-              results={results}
-              groups={groups}
-              selectedGroupFilter={selectedGroupFilter}
-              onInspectStudent={setInspectingResult}
-              onDeleteResult={handleDeleteResult}
-            />
-          )}
+            {activeTab === "results" && (
+              <ResultsView
+                results={results}
+                groups={groups}
+                selectedGroupFilter={selectedGroupFilter}
+                onGroupFilterChange={setSelectedGroupFilter}
+                onInspectStudent={setInspectingResult}
+                onDeleteResult={handleDeleteResult}
+              />
+            )}
 
-          {activeTab === "questions" && (
-            <QuestionsView
-              questions={questions}
-              onAddQuestion={() => {
-                setEditingQuestion(null);
-                setIsQuestionModalOpen(true);
-              }}
-              onEditQuestion={(q) => {
-                setEditingQuestion(q);
-                setIsQuestionModalOpen(true);
-              }}
-              onDeleteQuestion={handleDeleteQuestion}
-            />
-          )}
+            {activeTab === "questions" && (
+              <QuestionsView
+                questions={questions}
+                onAddQuestion={() => {
+                  setEditingQuestion(null);
+                  setIsQuestionModalOpen(true);
+                }}
+                onEditQuestion={(q) => {
+                  setEditingQuestion(q);
+                  setIsQuestionModalOpen(true);
+                }}
+                onDeleteQuestion={handleDeleteQuestion}
+                onImportQuestions={handleImportQuestions}
+              />
+            )}
 
-          {activeTab === "settings" && (
-            <ExamConfigView
-              settings={settings}
-              questions={questions}
-              onSaveSettings={handleSaveSettings}
-            />
-          )}
+            {activeTab === "settings" && (
+              <ExamConfigView
+                settings={settings}
+                questions={questions}
+                onSaveSettings={handleSaveSettings}
+              />
+            )}
+          </>}
         </main>
       </div>
 
-      {/* Student Deep Inspection Modal */}
-      <StudentDetailModal
-        result={inspectingResult}
-        questions={questions}
-        onClose={() => setInspectingResult(null)}
-      />
-
       {/* Add / Edit Question Modal */}
       <QuestionModal
+        key={editingQuestion?.id ?? "new-question"}
         isOpen={isQuestionModalOpen}
         question={editingQuestion}
         existingQuestions={questions}

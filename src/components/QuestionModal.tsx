@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { X, Save } from "lucide-react";
 import type { Question, Category, QuestionType } from "../types";
 
@@ -61,42 +61,6 @@ export const QuestionModal: React.FC<QuestionModalProps> = ({
   );
 
   const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    if (question) {
-      setCategory(question.category);
-      setType(question.type);
-      setTopic(question.topic || "");
-      setQuestionText(question.question || "");
-      setHint(question.hint || "");
-      setPoints(question.points || 1);
-      setMcqOptions(question.type === "mcq" && Array.isArray(question.options) ? question.options : ["", "", "", ""]);
-      setMcqAnswer(question.type === "mcq" ? String(question.answer || "A") : "A");
-      setTfAnswer(question.type === "truefalse" ? Boolean(question.answer) : true);
-      setCodePlaceholder(question.type === "code" ? question.placeholder || "" : "");
-      setCodeAccepted(question.type === "code" ? (Array.isArray(question.accepted) ? question.accepted.join("\n---YOKI---\n") : String(question.accepted || "")) : "");
-      setDragTokens(question.type === "drag" ? (Array.isArray(question.tokens) ? question.tokens.join(", ") : String(question.tokens || "")) : "");
-      setDragCorrectOrder(question.type === "drag" ? (Array.isArray(question.correctOrder) ? question.correctOrder.join(", ") : String(question.correctOrder || "")) : "");
-      setFixBrokenCode(question.type === "fix" ? question.brokenCode || "" : "");
-      setFixAccepted(question.type === "fix" ? (Array.isArray(question.accepted) ? question.accepted.join("\n---YOKI---\n") : String(question.accepted || "")) : "");
-    } else {
-      setCategory("HTML");
-      setType("mcq");
-      setTopic("");
-      setQuestionText("");
-      setHint("");
-      setPoints(1);
-      setMcqOptions(["", "", "", ""]);
-      setMcqAnswer("A");
-      setTfAnswer(true);
-      setCodePlaceholder("");
-      setCodeAccepted("");
-      setDragTokens("");
-      setDragCorrectOrder("");
-      setFixBrokenCode("");
-      setFixAccepted("");
-    }
-  }, [question, isOpen]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

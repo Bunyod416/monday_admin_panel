@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Search,
   Download,
@@ -9,10 +9,7 @@ import {
   CheckCircle,
   X,
   Users,
-  Award,
-  TrendingUp,
   FolderKanban,
-  CheckCircle2,
   Filter,
 } from "lucide-react";
 import type { ExamResult, ExamGroup } from "../types";
@@ -21,6 +18,7 @@ type ResultsViewProps = {
   results: ExamResult[];
   groups?: ExamGroup[];
   selectedGroupFilter?: string;
+  onGroupFilterChange?: (group: string) => void;
   onInspectStudent: (result: ExamResult) => void;
   onDeleteResult: (id: number) => void;
 };
@@ -29,17 +27,14 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   results,
   groups = [],
   selectedGroupFilter = "all",
+  onGroupFilterChange,
   onInspectStudent,
   onDeleteResult,
 }) => {
   const [search, setSearch] = useState("");
   const [filterScore, setFilterScore] = useState<string>("all");
-  const [filterGroup, setFilterGroup] = useState<string>(selectedGroupFilter);
   const [sortBy, setSortBy] = useState<"time" | "score" | "name" | "violations">("time");
-
-  useEffect(() => {
-    setFilterGroup(selectedGroupFilter);
-  }, [selectedGroupFilter]);
+  const filterGroup = selectedGroupFilter;
 
   // State for animated delete confirmation modal
   const [itemToDelete, setItemToDelete] = useState<ExamResult | null>(null);
@@ -133,27 +128,6 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       });
   }, [results, search, filterScore, filterGroup, sortBy]);
 
-  // 3. Selected Group Metrics Summary
-  const groupMetrics = useMemo(() => {
-    if (filtered.length === 0) {
-      return { total: 0, avgScore: 0, avgPct: 0, passCount: 0, highestScore: 0, violationTotal: 0 };
-    }
-    const total = filtered.length;
-    const totalScore = filtered.reduce((s, r) => s + Number(r.score || 0), 0);
-    const avgScore = Math.round(totalScore / total);
-    const highestScore = Math.max(...filtered.map((r) => Number(r.score || 0)));
-    const violationTotal = filtered.reduce((s, r) => s + Number(r.violation_count || 0), 0);
-
-    const passCount = filtered.filter((r) => {
-      const tot = getTotalPoints(r);
-      return tot > 0 ? (Number(r.score) / tot) * 100 >= 60 : false;
-    }).length;
-
-    const avgPct = Math.round((passCount / total) * 100);
-
-    return { total, avgScore, avgPct, passCount, highestScore, violationTotal };
-  }, [filtered]);
-
   function exportCSV() {
     if (filtered.length === 0) return;
     const headers = ["ID", "Talaba Ismi", "Guruh Kodi", "To'plagan Ball", "Jami Ball", "Foiz", "Qoidabuzarlik", "Topshirilgan Vaqt"];
@@ -184,39 +158,34 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     }
   }
 
-  // Find active group details
-  const currentActiveGroup = discoveredGroups.find((g) => g.code === filterGroup);
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* ────────────────────────────────────────────────────────
           1. GROUP SELECTOR TABS / PILLS BAR
       ──────────────────────────────────────────────────────── */}
-      <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+      <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-            <FolderKanban size={15} className="text-green-700" />
-            Guruhlar Bo'yicha Saralash:
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <FolderKanban size={14} className="text-green-700" />
+            Guruhlar
           </span>
-          <span className="text-xs text-slate-400 font-medium">
+          <span className="text-[11px] text-slate-400 font-medium">
             Jami: {results.length} ta natija
           </span>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin">
           <button
-            onClick={() => setFilterGroup("all")}
-            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer ${
-              filterGroup === "all"
-                ? "bg-green-700 text-white shadow-md shadow-green-700/20"
-                : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-            }`}
+            onClick={() => onGroupFilterChange?.("all")}
+            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${filterGroup === "all"
+              ? "bg-green-700 text-white shadow-md shadow-green-700/20"
+              : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
           >
             <span>Barcha Guruhlar</span>
             <span
-              className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
-                filterGroup === "all" ? "bg-white/20 text-white" : "bg-white text-slate-700 shadow-xs"
-              }`}
+              className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${filterGroup === "all" ? "bg-white/20 text-white" : "bg-white text-slate-700 shadow-xs"
+                }`}
             >
               {results.length}
             </span>
@@ -227,18 +196,16 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             return (
               <button
                 key={g.code}
-                onClick={() => setFilterGroup(g.code)}
-                className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer border ${
-                  isSelected
-                    ? "bg-green-700 text-white border-green-700 shadow-md shadow-green-700/20"
-                    : "bg-emerald-50/70 hover:bg-emerald-100 text-emerald-900 border-emerald-200/80"
-                }`}
+                onClick={() => onGroupFilterChange?.(g.code)}
+                className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border ${isSelected
+                  ? "bg-green-700 text-white border-green-700 shadow-md shadow-green-700/20"
+                  : "bg-emerald-50/70 hover:bg-emerald-100 text-emerald-900 border-emerald-200/80"
+                  }`}
               >
                 <span>{g.name}</span>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-extrabold ${
-                    isSelected ? "bg-white/25 text-white" : "bg-emerald-200/80 text-emerald-900"
-                  }`}
+                  className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-extrabold ${isSelected ? "bg-white/25 text-white" : "bg-emerald-200/80 text-emerald-900"
+                    }`}
                 >
                   {g.count}
                 </span>
@@ -249,84 +216,23 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       </div>
 
       {/* ────────────────────────────────────────────────────────
-          2. GROUP SUMMARY STATS BAR
-      ──────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-green-50 text-green-700 flex items-center justify-center border border-green-200 shrink-0">
-            <Users size={20} />
-          </div>
-          <div>
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-              {filterGroup === "all" ? "Jami Topshirganlar" : "Guruh Talabalari"}
-            </span>
-            <p className="text-2xl font-black text-slate-900 mt-0.5">
-              {groupMetrics.total} <span className="text-xs font-normal text-slate-400">nafar</span>
-            </p>
-          </div>
-        </div>
-
-        <div className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200 shrink-0">
-            <TrendingUp size={20} />
-          </div>
-          <div>
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-              O'rtacha Ball
-            </span>
-            <p className="text-2xl font-black text-emerald-700 mt-0.5">
-              {groupMetrics.avgScore} <span className="text-xs font-normal text-slate-400">ball</span>
-            </p>
-          </div>
-        </div>
-
-        <div className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center border border-teal-200 shrink-0">
-            <Award size={20} />
-          </div>
-          <div>
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-              Eng Yuqori Ball
-            </span>
-            <p className="text-2xl font-black text-teal-700 mt-0.5">
-              {groupMetrics.highestScore} <span className="text-xs font-normal text-slate-400">ball</span>
-            </p>
-          </div>
-        </div>
-
-        <div className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200 shrink-0">
-            <CheckCircle2 size={20} />
-          </div>
-          <div>
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-              O'tish Ko'rsatkichi
-            </span>
-            <p className="text-2xl font-black text-emerald-700 mt-0.5">
-              {groupMetrics.avgPct}% <span className="text-xs font-normal text-slate-400">({groupMetrics.passCount} ta)</span>
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ────────────────────────────────────────────────────────
           3. SEARCH, FILTERS & ACTION BAR
       ──────────────────────────────────────────────────────── */}
-      <div className="p-4 rounded-3xl bg-white border border-slate-200 flex flex-col lg:flex-row gap-4 items-center justify-between shadow-sm">
-        <div className="relative w-full lg:w-96">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+      <div className="p-3 rounded-2xl bg-white border border-slate-200 flex flex-col lg:flex-row gap-3 items-center justify-between shadow-sm">
+        <div className="relative w-full lg:w-80">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Talaba ismi bo'yicha qidirish..."
-            className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-green-600 rounded-2xl pl-11 pr-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors"
+            className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-green-600 rounded-xl pl-10 pr-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition-colors"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end">
           {/* Grade Filter */}
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-xs text-slate-700">
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-[11px] text-slate-700">
             <Filter size={14} className="text-slate-400" />
             <span>Baho:</span>
             <select
@@ -344,7 +250,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           </div>
 
           {/* Sorting */}
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-xs text-slate-700">
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-[11px] text-slate-700">
             <span>Saralash:</span>
             <select
               value={sortBy}
@@ -361,7 +267,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           {/* CSV Export */}
           <button
             onClick={exportCSV}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-green-700 hover:bg-green-800 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-[11px] font-bold transition-all shadow-sm cursor-pointer"
             title="Ushbu ro'yxatni Excel (CSV) formatida yuklab olish"
           >
             <Download size={14} />
@@ -375,30 +281,12 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       {/* ────────────────────────────────────────────────────────
           4. RESULTS TABLE
       ──────────────────────────────────────────────────────── */}
-      <div className="rounded-3xl bg-white border border-slate-200 overflow-hidden shadow-sm">
-        {/* Active group header bar */}
-        {filterGroup !== "all" && currentActiveGroup && (
-          <div className="px-6 py-3.5 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-600" />
-              <h4 className="text-xs font-bold text-emerald-900">
-                Guruh: <span className="font-extrabold text-sm">{currentActiveGroup.name}</span> ({currentActiveGroup.code})
-              </h4>
-            </div>
-            <button
-              onClick={() => setFilterGroup("all")}
-              className="text-xs text-emerald-700 hover:text-emerald-900 font-bold hover:underline cursor-pointer flex items-center gap-1"
-            >
-              <X size={13} /> Filtrni tozalash
-            </button>
-          </div>
-        )}
+      <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden shadow-sm">
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-700">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500 font-bold border-b border-slate-200 tracking-wider">
               <tr>
-                <th className="px-6 py-4">#</th>
                 <th className="px-6 py-4">Talaba Ismi</th>
                 <th className="px-6 py-4">Guruh</th>
                 <th className="px-6 py-4">To'plagan Ball</th>
@@ -411,7 +299,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             <tbody className="divide-y divide-slate-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-16 text-center text-slate-400 text-sm space-y-2">
+                  <td colSpan={7} className="px-6 py-16 text-center text-slate-400 text-sm space-y-2">
                     <Users size={36} className="mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-600">Qidiruvga mos natijalar topilmadi</p>
                     <p className="text-xs text-slate-400">
@@ -420,7 +308,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filtered.map((r, idx) => {
+                filtered.map((r) => {
                   const score = Number(r.score) || 0;
                   const total = getTotalPoints(r);
                   const pct = total > 0 ? Math.round((score / total) * 100) : 0;
@@ -433,7 +321,6 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                       className="hover:bg-slate-50/90 transition-colors group cursor-pointer"
                       onClick={() => onInspectStudent(r)}
                     >
-                      <td className="px-6 py-4 text-xs font-bold text-slate-400">{idx + 1}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-2xl bg-green-50 text-green-800 flex items-center justify-center font-bold text-sm border border-green-200 shrink-0">
@@ -443,7 +330,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                             <p className="font-semibold text-slate-900 group-hover:text-green-700 transition-colors text-sm">
                               {r.student_name}
                             </p>
-                            <p className="text-[11px] text-slate-400">Natija ID: #{r.id}</p>
+                            <p className="text-[11px] text-slate-400">{new Date(r.submitted_at || r.created_at).toLocaleDateString("uz-UZ")}</p>
                           </div>
                         </div>
                       </td>
@@ -452,7 +339,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setFilterGroup(grp.toUpperCase());
+                              onGroupFilterChange?.(grp.toUpperCase());
                             }}
                             className="px-3 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-mono font-bold text-xs border border-emerald-200 transition-all cursor-pointer inline-flex items-center gap-1.5"
                             title={`Faqat ${grp} guruhini filtrlash`}
@@ -474,15 +361,14 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                       </td>
                       <td className="px-6 py-4">
                         <span
-                          className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                            pct >= 86
-                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                              : pct >= 71
+                          className={`px-3 py-1 rounded-full text-xs font-bold border ${pct >= 86
+                            ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                            : pct >= 71
                               ? "bg-blue-50 text-blue-800 border-blue-200"
                               : pct >= 56
-                              ? "bg-amber-50 text-amber-800 border-amber-200"
-                              : "bg-rose-50 text-rose-800 border-rose-200"
-                          }`}
+                                ? "bg-amber-50 text-amber-800 border-amber-200"
+                                : "bg-rose-50 text-rose-800 border-rose-200"
+                            }`}
                         >
                           {pct}%
                         </span>

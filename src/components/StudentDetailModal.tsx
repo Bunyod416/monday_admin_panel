@@ -15,12 +15,21 @@ type StudentDetailModalProps = {
   result: ExamResult | null;
   questions: Question[];
   onClose: () => void;
+  fullPage?: boolean;
+  onSaveCorrection: (
+    resultId: number,
+    questionId: number,
+    override: boolean | null,
+    scoreDelta: number,
+  ) => Promise<void>;
 };
 
 export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   result,
   questions,
   onClose,
+  fullPage = false,
+  onSaveCorrection,
 }) => {
   const [selectedCat, setSelectedCat] = useState<Category | "ALL">("ALL");
   const [copiedGroup, setCopiedGroup] = useState<string | null>(null);
@@ -45,12 +54,14 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
     ? (() => { try { return JSON.parse(result.answers); } catch { return {}; } })()
     : (result?.answers || {});
 
+  const adminOverrides = answers?._meta?.admin_overrides || {};
+
   // Extract only the question IDs assigned to this student in their exam
   const studentAssignedIds: number[] = categoryOrder
     ? categories.flatMap((c) => categoryOrder?.[c] || [])
     : Object.keys(answers || {})
-        .filter((k) => k !== "_meta" && !isNaN(Number(k)))
-        .map(Number);
+      .filter((k) => k !== "_meta" && !isNaN(Number(k)))
+      .map(Number);
 
   const total = Number(result?.total_points) || (studentAssignedIds.length > 0 ? studentAssignedIds.length : (questions.length > 0 ? questions.length : 120));
   const pct = total > 0 ? Math.round((score / total) * 100) : 0;
@@ -60,10 +71,10 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
     if (studentAssignedIds.length > 0) {
       const targetIds: number[] = selectedCat === "ALL"
         ? studentAssignedIds
-        : (categoryOrder?.[selectedCat] || studentAssignedIds.filter((id: number) => {
-            const q = questions.find((item) => item.id === id);
-            return q?.category === selectedCat;
-          }));
+        : studentAssignedIds.filter((id: number) => {
+          const q = questions.find((item) => item.id === id);
+          return q?.category === selectedCat;
+        });
 
       return targetIds
         .map((id: number) => questions.find((q) => q.id === id))
@@ -76,32 +87,34 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   if (!result) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-fade-in">
-      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-slide-up">
+    <div className={fullPage ? "w-full animate-fade-in" : "fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-fade-in"}>
+      <div className={fullPage
+        ? "bg-white border border-slate-200 rounded-2xl w-full flex flex-col shadow-sm"
+        : "bg-white border border-slate-200 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-slide-up"}
+      >
         {/* Modal Header */}
-        <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-green-700 text-white flex items-center justify-center font-black text-xl shadow-md">
+        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-green-700 text-white flex items-center justify-center font-black text-lg shadow-md">
               {result.student_name.charAt(0).toUpperCase()}
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 {result.student_name}
                 <span
-                  className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
-                    pct >= 86
-                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                      : pct >= 71
+                  className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${pct >= 86
+                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                    : pct >= 71
                       ? "bg-green-50 text-green-800 border-green-200"
                       : pct >= 56
-                      ? "bg-teal-50 text-teal-800 border-teal-200"
-                      : "bg-slate-100 text-slate-700 border-slate-200"
-                  }`}
+                        ? "bg-teal-50 text-teal-800 border-teal-200"
+                        : "bg-slate-100 text-slate-700 border-slate-200"
+                    }`}
                 >
                   {pct}% natija
                 </span>
               </h2>
-              <p className="text-xs text-slate-500 flex items-center gap-3 mt-1">
+              <p className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
                 <span className="flex items-center gap-1">
                   <Clock size={12} /> {new Date(result.submitted_at || result.created_at).toLocaleString("uz-UZ")}
                 </span>
@@ -116,11 +129,10 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                       <button
                         type="button"
                         onClick={() => copyGroupCode(gCode)}
-                        className={`font-mono font-bold text-xs px-2 py-0.5 rounded-md border transition-all inline-flex items-center gap-1 cursor-pointer active:scale-95 ${
-                          isCopied
-                            ? "bg-green-700 text-white border-green-700 shadow-sm"
-                            : "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300"
-                        }`}
+                        className={`font-mono font-bold text-xs px-2 py-0.5 rounded-md border transition-all inline-flex items-center gap-1 cursor-pointer active:scale-95 ${isCopied
+                          ? "bg-green-700 text-white border-green-700 shadow-sm"
+                          : "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300"
+                          }`}
                         title="Guruh kodini nusxalash"
                       >
                         {isCopied ? (
@@ -153,52 +165,56 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
         </div>
 
         {/* Stats Row */}
-        <div className="p-6 bg-slate-50 border-b border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-            <span className="text-xs font-semibold text-slate-500">To'plangan Ball</span>
-            <p className="text-2xl font-black text-emerald-700 mt-1">
-              {score} <span className="text-sm font-normal text-slate-400">/ {total}</span>
+        <div className="p-3 bg-slate-50 border-b border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+            <span className="text-[11px] font-semibold text-slate-500">To'plangan Ball</span>
+            <p className="text-xl font-black text-emerald-700 mt-0.5">
+              {score} <span className="text-xs font-normal text-slate-400">/ {total}</span>
             </p>
           </div>
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-            <span className="text-xs font-semibold text-slate-500">Ko'rsatkich (Foiz)</span>
-            <p className="text-2xl font-black text-slate-900 mt-1">{pct}%</p>
+          <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+            <span className="text-[11px] font-semibold text-slate-500">Ko'rsatkich (Foiz)</span>
+            <p className="text-xl font-black text-slate-900 mt-0.5">{pct}%</p>
           </div>
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-            <span className="text-xs font-semibold text-slate-500">Qoidabuzarliklar</span>
-            <p className={`text-2xl font-black mt-1 ${result.violation_count > 0 ? "text-rose-600" : "text-slate-600"}`}>
+          <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+            <span className="text-[11px] font-semibold text-slate-500">Qoidabuzarliklar</span>
+            <p className={`text-xl font-black mt-0.5 ${result.violation_count > 0 ? "text-rose-600" : "text-slate-600"}`}>
               {result.violation_count || 0} ta
             </p>
           </div>
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-            <span className="text-xs font-semibold text-slate-500">Jarima Bali</span>
-            <p className="text-2xl font-black text-amber-700 mt-1">-{result.violation_count || 0}</p>
+          <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+            <span className="text-[11px] font-semibold text-slate-500">Jarima Bali</span>
+            <p className="text-xl font-black text-amber-700 mt-0.5">-{result.violation_count || 0}</p>
           </div>
         </div>
 
         {/* Category Tabs Filter */}
-        <div className="px-6 py-3 border-b border-slate-200 flex gap-2 overflow-x-auto bg-white">
+        <div className="px-14 py-2 border-b  border-slate-200 shrink-0 gap-2 overflow-x-auto bg-white">
           <button
+            type="button"
             onClick={() => setSelectedCat("ALL")}
-            className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
-              selectedCat === "ALL"
-                ? "bg-green-700 text-white"
-                : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200"
-            }`}
+            aria-pressed={selectedCat === "ALL"}
+            className={`px-4 py-1.5 rounded-xl   text-xs font-semibold transition-colors cursor-pointer ${selectedCat === "ALL"
+              ? "bg-green-700 text-white"
+              : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 "
+              }`}
           >
             Barcha Savollar ({studentAssignedIds.length || questions.length})
           </button>
           {categories.map((cat) => {
-            const catCount = categoryOrder?.[cat]?.length ?? questions.filter((q) => q.category === cat).length;
+            const catCount = studentAssignedIds.length > 0
+              ? studentAssignedIds.filter((id) => questions.find((q) => q.id === id)?.category === cat).length
+              : questions.filter((q) => q.category === cat).length;
             return (
               <button
                 key={cat}
+                type="button"
                 onClick={() => setSelectedCat(cat)}
-                className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
-                  selectedCat === cat
-                    ? "bg-green-700 text-white"
-                    : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200"
-                }`}
+                aria-pressed={selectedCat === cat}
+                className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${selectedCat === cat
+                  ? "bg-green-700 text-white"
+                  : "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200"
+                  }`}
               >
                 {cat} ({catCount})
               </button>
@@ -207,7 +223,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
         </div>
 
         {/* Detailed Questions Breakdown List */}
-        <div className="p-6 overflow-y-auto space-y-4 flex-1 bg-slate-50">
+        <div className="p-4 space-y-3 bg-slate-50">
           {filteredQuestions.length === 0 ? (
             <div className="p-12 text-center text-slate-400 text-sm">
               Bu bo'limda savollar mavjud emas.
@@ -215,7 +231,10 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
           ) : (
             filteredQuestions.map((q, idx) => {
               const ans = answers?.[q.id] || answers?.[String(q.id)];
-              let isCorrect = false;
+              const overrideKey = String(q.id);
+              const hasOverride = typeof adminOverrides[overrideKey] === "boolean";
+              const overrideValue = hasOverride ? Boolean(adminOverrides[overrideKey]) : null;
+              let automaticCorrect = false;
               let isNearMiss = false;
               let studentAnswerText = "Javob berilmadi";
               let correctAnswerText = "—";
@@ -230,7 +249,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                     ? Number(ans.selected)
                     : null;
 
-                isCorrect = selectedIdx !== null && selectedIdx === correctIdx;
+                automaticCorrect = selectedIdx !== null && selectedIdx === correctIdx;
 
                 studentAnswerText =
                   selectedIdx !== null && q.options?.[selectedIdx] !== undefined
@@ -244,7 +263,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                 const expectedBool = q.answer === true || String(q.answer).toLowerCase() === "true";
                 const studentBool = ans?.type === "truefalse" && ans.selected !== null ? Boolean(ans.selected) : null;
 
-                isCorrect = studentBool !== null && studentBool === expectedBool;
+                automaticCorrect = studentBool !== null && studentBool === expectedBool;
                 studentAnswerText =
                   studentBool !== null
                     ? studentBool ? "To'g'ri (True)" : "Noto'g'ri (False)"
@@ -255,7 +274,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                 const acceptedList = q.accepted || [];
                 const match = matchWithNearMiss(val, acceptedList, langForCategory(q.category));
 
-                isCorrect = match.status === "correct";
+                automaticCorrect = match.status === "correct";
                 isNearMiss = match.status === "near";
                 studentAnswerText = val || "Javob berilmadi";
                 correctAnswerText = acceptedList.join("\n--- YOKI ---\n");
@@ -266,7 +285,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                 const studentOrder = ans?.type === "dragdrop" ? ans.order : undefined;
                 const touched = ans?.type === "dragdrop" ? ans.touched : false;
 
-                isCorrect =
+                automaticCorrect =
                   touched &&
                   Array.isArray(studentOrder) &&
                   JSON.stringify(studentOrder) === JSON.stringify(correctOrderIndices);
@@ -278,16 +297,23 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                 correctAnswerText = correctTokens.join("  →  ");
               }
 
+              const isCorrect = overrideValue ?? automaticCorrect;
+              const saveCorrection = async (desired: boolean | null) => {
+                const nextIsCorrect = desired ?? automaticCorrect;
+                const scoreDelta = nextIsCorrect === isCorrect ? 0 : nextIsCorrect ? q.points : -q.points;
+                const nextOverride = desired === null || desired === automaticCorrect ? null : desired;
+                await onSaveCorrection(result.id, q.id, nextOverride, scoreDelta);
+              };
+
               return (
                 <div
                   key={q.id}
-                  className={`p-5 rounded-2xl border transition-all bg-white shadow-sm ${
-                    isCorrect
-                      ? "border-emerald-200"
-                      : isNearMiss
+                  className={`p-5 rounded-2xl border transition-all bg-white shadow-sm ${isCorrect
+                    ? "border-emerald-200"
+                    : isNearMiss
                       ? "border-amber-300 bg-amber-50/20"
                       : "border-rose-200"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-2.5">
@@ -301,13 +327,12 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
 
                     <div className="flex items-center gap-2">
                       <span
-                        className={`px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 ${
-                          isCorrect
-                            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                            : isNearMiss
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 ${isCorrect
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                          : isNearMiss
                             ? "bg-amber-50 text-amber-800 border border-amber-300"
                             : "bg-rose-50 text-rose-800 border border-rose-200"
-                        }`}
+                          }`}
                       >
                         {isCorrect ? (
                           <>
@@ -326,6 +351,25 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                           </>
                         )}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => saveCorrection(isCorrect ? false : true)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border cursor-pointer transition-colors ${isCorrect
+                          ? "text-rose-700 border-rose-200 hover:bg-rose-50"
+                          : "text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                          }`}
+                      >
+                        {isCorrect ? "Noto'g'ri deb belgilash" : "To'g'ri deb belgilash"}
+                      </button>
+                      {hasOverride && (
+                        <button
+                          type="button"
+                          onClick={() => saveCorrection(null)}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 border border-slate-200 hover:bg-slate-100 cursor-pointer transition-colors"
+                        >
+                          Avtomatik
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -344,9 +388,8 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                       <span className="text-slate-500 font-semibold block mb-1">Talabaning Javobi:</span>
                       <pre
-                        className={`font-mono whitespace-pre-wrap font-semibold ${
-                          isCorrect ? "text-emerald-700" : isNearMiss ? "text-amber-700" : "text-rose-600"
-                        }`}
+                        className={`font-mono whitespace-pre-wrap font-semibold ${isCorrect ? "text-emerald-700" : isNearMiss ? "text-amber-700" : "text-rose-600"
+                          }`}
                       >
                         {studentAnswerText}
                       </pre>

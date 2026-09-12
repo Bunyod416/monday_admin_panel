@@ -131,7 +131,7 @@ export type LiveStudentTelemetry = {
   remainingSeconds: number;
   elapsedSeconds: number;
   violationCount: number;
-  status: "in_exam" | "warning" | "paused" | "blocked" | "submitted";
+  status: "in_exam" | "warning" | "paused" | "blocked" | "submitted" | "inactive";
   lastActiveAt: number;
 };
 

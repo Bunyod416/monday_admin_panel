@@ -62,7 +62,7 @@ export const LiveMonitoringView: React.FC<LiveMonitoringViewProps> = ({
         });
       }
       const item = map.get(code)!;
-      if (s.status !== "submitted") {
+      if (s.status !== "submitted" && s.status !== "inactive") {
         item.count += 1;
       }
     });
@@ -86,10 +86,10 @@ export const LiveMonitoringView: React.FC<LiveMonitoringViewProps> = ({
     return matchesSearch && matchesGroup;
   });
 
-  const activeCount = liveStudents.filter((s) => s.status !== "submitted").length;
+  const activeCount = liveStudents.filter((s) => s.status !== "submitted" && s.status !== "inactive").length;
   const warningCount = liveStudents.filter((s) => s.status === "warning" || s.status === "blocked").length;
   const activeGroupsCount = new Set(
-    liveStudents.filter((s) => s.status !== "submitted" && s.groupCode).map((s) => s.groupCode.toUpperCase())
+    liveStudents.filter((s) => s.status !== "submitted" && s.status !== "inactive" && s.groupCode).map((s) => s.groupCode.toUpperCase())
   ).size;
 
   const categoryBadgeColors: Record<Category, { bg: string; text: string; border: string }> = {
@@ -255,6 +255,7 @@ export const LiveMonitoringView: React.FC<LiveMonitoringViewProps> = ({
             const isWarning = student.status === "warning";
             const isBlocked = student.status === "blocked";
             const isSubmitted = student.status === "submitted";
+            const isInactive = student.status === "inactive";
 
             return (
               <div
@@ -263,7 +264,9 @@ export const LiveMonitoringView: React.FC<LiveMonitoringViewProps> = ({
                   ? "border-rose-300 bg-rose-50/20"
                   : isWarning
                     ? "border-amber-300 bg-amber-50/20"
-                    : "border-slate-200 hover:border-green-300"
+                    : isInactive
+                      ? "border-slate-300 bg-slate-50/50"
+                      : "border-slate-200 hover:border-green-300"
                   }`}
               >
                 {/* Status Indicator Bar */}
@@ -282,11 +285,10 @@ export const LiveMonitoringView: React.FC<LiveMonitoringViewProps> = ({
                           <button
                             type="button"
                             onClick={(e) => copyGroupCode(student.groupCode, e)}
-                            className={`px-2.5 py-0.5 rounded-md font-mono font-bold text-xs border transition-all inline-flex items-center gap-1 cursor-pointer active:scale-95 ${
-                              copiedGroup === student.groupCode
+                            className={`px-2.5 py-0.5 rounded-md font-mono font-bold text-xs border transition-all inline-flex items-center gap-1 cursor-pointer active:scale-95 ${copiedGroup === student.groupCode
                                 ? "bg-green-700 text-white border-green-700 shadow-sm"
                                 : "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300"
-                            }`}
+                              }`}
                             title="Guruh kodini nusxalash"
                           >
                             {copiedGroup === student.groupCode ? (
@@ -321,6 +323,10 @@ export const LiveMonitoringView: React.FC<LiveMonitoringViewProps> = ({
                     ) : isSubmitted ? (
                       <span className="px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold flex items-center gap-1">
                         <CheckCircle2 size={12} /> Yakunladi
+                      </span>
+                    ) : isInactive ? (
+                      <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-500" /> Faol emas
                       </span>
                     ) : (
                       <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-1">
