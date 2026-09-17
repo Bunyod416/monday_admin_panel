@@ -252,25 +252,36 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
               let correctAnswerText = "—";
 
               if (q.type === "mcq") {
-                const correctIdx = /^[0-9]+$/.test(String(q.answer))
-                  ? Number(q.answer)
-                  : String(q.answer).toUpperCase().charCodeAt(0) - 65;
+                const answerText = String(q.answer ?? "").trim().toUpperCase();
+                const correctIdx = /^[0-9]+$/.test(answerText)
+                  ? Number(answerText)
+                  : /^[A-Z]$/.test(answerText)
+                    ? answerText.charCodeAt(0) - 65
+                    : -1;
 
                 const selectedIdx =
                   ans?.type === "mcq" && ans.selected !== null && ans.selected !== undefined
                     ? Number(ans.selected)
                     : null;
 
-                automaticCorrect = selectedIdx !== null && selectedIdx === correctIdx;
+                automaticCorrect = selectedIdx !== null &&
+                  Number.isInteger(selectedIdx) &&
+                  selectedIdx >= 0 &&
+                  selectedIdx < (q.options?.length ?? 0) &&
+                  selectedIdx === correctIdx;
 
                 studentAnswerText =
                   selectedIdx !== null && q.options?.[selectedIdx] !== undefined
                     ? `${String.fromCharCode(65 + selectedIdx)}) ${q.options[selectedIdx]}`
                     : "Javob berilmadi";
 
-                const correctLetter = String.fromCharCode(65 + Math.max(0, correctIdx));
-                const correctText = q.options?.[correctIdx] ?? "";
-                correctAnswerText = `${correctLetter}) ${correctText}`;
+                if (correctIdx >= 0 && correctIdx < (q.options?.length ?? 0)) {
+                  const correctLetter = String.fromCharCode(65 + correctIdx);
+                  const correctText = q.options?.[correctIdx] ?? "";
+                  correctAnswerText = `${correctLetter}) ${correctText}`;
+                } else {
+                  correctAnswerText = "To'g'ri javob bazada sozlanmagan";
+                }
               } else if (q.type === "truefalse") {
                 const expectedBool = q.answer === true || String(q.answer).toLowerCase() === "true";
                 const studentBool = ans?.type === "truefalse" && ans.selected !== null ? Boolean(ans.selected) : null;
