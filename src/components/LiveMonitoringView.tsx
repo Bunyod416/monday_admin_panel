@@ -107,9 +107,6 @@ export const LiveMonitoringView: React.FC<LiveMonitoringViewProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
-      {/* ────────────────────────────────────────────────────────
-          TOP STATS SUMMARY
-      ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -286,8 +283,8 @@ export const LiveMonitoringView: React.FC<LiveMonitoringViewProps> = ({
                             type="button"
                             onClick={(e) => copyGroupCode(student.groupCode, e)}
                             className={`px-2.5 py-0.5 rounded-md font-mono font-bold text-xs border transition-all inline-flex items-center gap-1 cursor-pointer active:scale-95 ${copiedGroup === student.groupCode
-                                ? "bg-green-700 text-white border-green-700 shadow-sm"
-                                : "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300"
+                              ? "bg-green-700 text-white border-green-700 shadow-sm"
+                              : "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300"
                               }`}
                             title="Guruh kodini nusxalash"
                           >

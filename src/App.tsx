@@ -9,24 +9,45 @@ import { ResultsView } from "./components/ResultsView";
 import { StudentDetailModal } from "./components/StudentDetailModal";
 import { QuestionsView } from "./components/QuestionsView";
 import { QuestionModal } from "./components/QuestionModal";
+import { TeachersView } from "./components/TeachersView";
+import { TeacherModal } from "./components/TeacherModal";
 import { ExamConfigView } from "./components/ExamConfigView";
 import { AdminLogin } from "./components/AdminLogin";
 import { supabase } from "./lib/supabase";
 import { readStorage, writeStorage, removeStorage } from "./lib/storage";
-import type { ExamResult, Question, TabType, ExamSettings, ExamGroup, LiveStudentTelemetry } from "./types";
+import type { ExamResult, Question, TabType, ExamSettings, ExamGroup, LiveStudentTelemetry, AdminUser } from "./types";
 import { Bell } from "lucide-react";
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return readStorage("monday_admin_auth") === "true";
   });
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(() => {
+    const saved = readStorage("monday_current_admin");
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    if (readStorage("monday_admin_auth") === "true") {
+      return {
+        id: "master_super_admin",
+        full_name: "Bosh Administrator",
+        username: "superadmin",
+        role: "super_admin",
+        is_active: true,
+      };
+    }
+    return null;
+  });
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
   const [results, setResults] = useState<ExamResult[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [groups, setGroups] = useState<ExamGroup[]>([]);
+  const [teachers, setTeachers] = useState<AdminUser[]>([]);
+  const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
+  const [editingTeacher, setEditingTeacher] = useState<AdminUser | null>(null);
   const [liveStudents, setLiveStudents] = useState<Record<string, LiveStudentTelemetry>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
-
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   // Realtime Live Toast Notification
   const [realtimeNotification, setRealtimeNotification] = useState<string | null>(null);
@@ -69,7 +90,6 @@ export default function App() {
   async function loadData() {
     setIsRefreshing(true);
     try {
-      // 1. Fetch results
       const { data: resultsData, error: resultsError } = await supabase
         .from("results")
         .select("*")
@@ -172,6 +192,29 @@ export default function App() {
         };
         setSettings(loadedSettings);
         writeStorage("monday_exam_settings", JSON.stringify(loadedSettings));
+      }
+
+      // 5. Fetch teachers (admin_users)
+      const { data: teachersData } = await supabase
+        .from("admin_users")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (teachersData) {
+        setTeachers(
+          teachersData.map((t: any): AdminUser => ({
+            id: t.id,
+            full_name: t.full_name,
+            username: t.username,
+            password: t.password,
+            role: t.role,
+            subject: t.subject,
+            phone: t.phone,
+            is_active: t.is_active !== false,
+            created_at: t.created_at,
+            last_login: t.last_login,
+          }))
+        );
       }
     } catch (err) {
       console.error("Data load failed:", err);
@@ -322,6 +365,34 @@ export default function App() {
       )
       .subscribe();
 
+    // ⚡ 5. Realtime channel for ADMIN_USERS (Teachers)
+    const teachersChannel = supabase
+      .channel("admin_realtime_teachers")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "admin_users" },
+        async () => {
+          const { data } = await supabase.from("admin_users").select("*").order("created_at", { ascending: false });
+          if (data) {
+            setTeachers(
+              data.map((t: any): AdminUser => ({
+                id: t.id,
+                full_name: t.full_name,
+                username: t.username,
+                password: t.password,
+                role: t.role,
+                subject: t.subject,
+                phone: t.phone,
+                is_active: t.is_active !== false,
+                created_at: t.created_at,
+                last_login: t.last_login,
+              }))
+            );
+          }
+        }
+      )
+      .subscribe();
+
     // Cleanup channels on unmount
     return () => {
       clearInterval(cleanupInterval);
@@ -329,6 +400,7 @@ export default function App() {
       supabase.removeChannel(liveChannel);
       supabase.removeChannel(groupsChannel);
       supabase.removeChannel(questionsChannel);
+      supabase.removeChannel(teachersChannel);
     };
   }, []);
 
@@ -563,8 +635,100 @@ export default function App() {
     }
   }
 
+  async function handleSaveTeacher(data: {
+    full_name: string;
+    username: string;
+    password?: string;
+    subject?: string;
+    phone?: string;
+    is_active: boolean;
+  }) {
+    if (editingTeacher) {
+      const updatePayload: any = {
+        full_name: data.full_name,
+        username: data.username,
+        subject: data.subject,
+        phone: data.phone,
+        is_active: data.is_active,
+      };
+      if (data.password) {
+        updatePayload.password = data.password;
+      }
+      const { error } = await supabase
+        .from("admin_users")
+        .update(updatePayload)
+        .eq("id", editingTeacher.id);
+
+      if (error) throw error;
+      setTeachers((prev) =>
+        prev.map((t) => (t.id === editingTeacher.id ? { ...t, ...updatePayload } : t))
+      );
+      showNotification("Ustoz ma'lumotlari yangilandi");
+    } else {
+      const newRecord = {
+        full_name: data.full_name,
+        username: data.username,
+        password: data.password,
+        subject: data.subject,
+        phone: data.phone,
+        role: "teacher",
+        is_active: data.is_active,
+      };
+      const { data: inserted, error } = await supabase
+        .from("admin_users")
+        .insert(newRecord)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+      if (inserted) {
+        setTeachers((prev) => [inserted as AdminUser, ...prev]);
+      }
+      showNotification("Yangi ustoz muvaffaqiyatli qo'shildi");
+    }
+  }
+
+  async function handleToggleTeacherStatus(id: string, currentStatus: boolean) {
+    const nextStatus = !currentStatus;
+    const { error } = await supabase
+      .from("admin_users")
+      .update({ is_active: nextStatus })
+      .eq("id", id);
+
+    if (error) {
+      alert("Holatni o'zgartirishda xatolik yuz berdi");
+    } else {
+      setTeachers((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, is_active: nextStatus } : t))
+      );
+      showNotification(`Ustoz hisobi ${nextStatus ? "faollashtirildi" : "nofaol qilindi"}`);
+    }
+  }
+
+  async function handleDeleteTeacher(id: string) {
+    const { error } = await supabase.from("admin_users").delete().eq("id", id);
+    if (error) {
+      alert("Ustozni o'chirishda xatolik yuz berdi");
+    } else {
+      setTeachers((prev) => prev.filter((t) => t.id !== id));
+      showNotification("Ustoz o'chirildi");
+    }
+  }
+
+  function handleSelectTab(tab: TabType) {
+    setActiveTab(tab);
+    setInspectingResult(null);
+  }
+
   if (!isAuthenticated) {
-    return <AdminLogin onSuccess={() => setIsAuthenticated(true)} />;
+    return (
+      <AdminLogin
+        onSuccess={(user) => {
+          setCurrentUser(user);
+          setIsAuthenticated(true);
+        }}
+      />
+    );
   }
 
   return (
@@ -582,23 +746,33 @@ export default function App() {
       {/* Sidebar */}
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleSelectTab}
         resultCount={results.length}
         questionCount={questions.length}
         groupCount={groups.length}
         liveCount={Object.values(liveStudents).filter((s) => s.status !== "submitted" && s.status !== "inactive").length}
+        teacherCount={teachers.length}
+        currentUser={currentUser}
+        isMobileOpen={isMobileNavOpen}
+        onCloseMobile={() => setIsMobileNavOpen(false)}
       />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 bg-slate-50">
         <Header
           activeTab={activeTab}
+          inspectingStudentName={inspectingResult?.student_name}
+          onBackFromInspect={() => setInspectingResult(null)}
           onRefresh={loadData}
           isRefreshing={isRefreshing}
+          currentUser={currentUser}
           onLogout={() => {
             removeStorage("monday_admin_auth");
+            removeStorage("monday_current_admin");
+            setCurrentUser(null);
             setIsAuthenticated(false);
           }}
+          onOpenMobileMenu={() => setIsMobileNavOpen(true)}
         />
 
         <main className="p-8 max-w-7xl w-full mx-auto flex-1">
@@ -616,7 +790,7 @@ export default function App() {
                 results={results}
                 questions={questions}
                 liveStudents={Object.values(liveStudents)}
-                setActiveTab={setActiveTab}
+                setActiveTab={handleSelectTab}
                 onInspectStudent={setInspectingResult}
               />
             )}
@@ -667,6 +841,22 @@ export default function App() {
               />
             )}
 
+            {activeTab === "teachers" && currentUser?.role === "super_admin" && (
+              <TeachersView
+                teachers={teachers}
+                onAddTeacher={() => {
+                  setEditingTeacher(null);
+                  setIsTeacherModalOpen(true);
+                }}
+                onEditTeacher={(t) => {
+                  setEditingTeacher(t);
+                  setIsTeacherModalOpen(true);
+                }}
+                onToggleStatus={handleToggleTeacherStatus}
+                onDeleteTeacher={handleDeleteTeacher}
+              />
+            )}
+
             {activeTab === "settings" && (
               <ExamConfigView
                 settings={settings}
@@ -696,6 +886,17 @@ export default function App() {
         isOpen={isGroupModalOpen}
         onClose={() => setIsGroupModalOpen(false)}
         onSave={handleCreateGroup}
+      />
+
+      {/* Teacher Modal */}
+      <TeacherModal
+        isOpen={isTeacherModalOpen}
+        teacher={editingTeacher}
+        onClose={() => {
+          setIsTeacherModalOpen(false);
+          setEditingTeacher(null);
+        }}
+        onSave={handleSaveTeacher}
       />
     </div>
   );

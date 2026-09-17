@@ -7,6 +7,7 @@ import {
   HelpCircle,
   Copy,
   Check,
+  ArrowLeft,
 } from "lucide-react";
 import type { ExamResult, Question, Category } from "../types";
 import { matchWithNearMiss, langForCategory } from "../utils/answerMatch";
@@ -95,7 +96,16 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
         {/* Modal Header */}
         <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-green-700 text-white flex items-center justify-center font-black text-lg shadow-md">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition-colors shadow-xs cursor-pointer mr-1"
+              title="Ro'yxatga qaytish"
+            >
+              <ArrowLeft size={16} className="text-slate-600" />
+              <span>Orqaga</span>
+            </button>
+            <div className="w-10 h-10 rounded-xl bg-[#3a7d5a] text-white flex items-center justify-center font-black text-lg shadow-sm">
               {result.student_name.charAt(0).toUpperCase()}
             </div>
             <div>
@@ -130,7 +140,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                         type="button"
                         onClick={() => copyGroupCode(gCode)}
                         className={`font-mono font-bold text-xs px-2 py-0.5 rounded-md border transition-all inline-flex items-center gap-1 cursor-pointer active:scale-95 ${isCopied
-                          ? "bg-green-700 text-white border-green-700 shadow-sm"
+                          ? "bg-[#3a7d5a] text-white border-[#3a7d5a] shadow-sm"
                           : "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300"
                           }`}
                         title="Guruh kodini nusxalash"
@@ -158,9 +168,11 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-900 border border-slate-200 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors cursor-pointer text-xs font-semibold"
+            title="Yopish"
           >
-            <X size={20} />
+            <span className="hidden sm:inline">Yopish</span>
+            <X size={18} />
           </button>
         </div>
 

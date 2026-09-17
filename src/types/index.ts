@@ -135,5 +135,19 @@ export type LiveStudentTelemetry = {
   lastActiveAt: number;
 };
 
-export type TabType = "dashboard" | "live" | "groups" | "results" | "questions" | "settings";
+export type TabType = "dashboard" | "live" | "groups" | "results" | "questions" | "settings" | "teachers";
 
+export type AdminRole = "super_admin" | "teacher";
+
+export type AdminUser = {
+  id: string;
+  full_name: string;
+  username: string;
+  password?: string;
+  role: AdminRole;
+  subject?: string;
+  phone?: string;
+  is_active: boolean;
+  created_at?: string;
+  last_login?: string;
+};
